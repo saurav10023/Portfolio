@@ -1,6 +1,3 @@
-// Swap the placeholder image URLs below for real screenshots of each
-// project (e.g. export crops from your own portfolio assets) — the
-// placehold.co links are only here so the layout has something to render.
 import btlkhome from "../assets/btlkhome.png"
 import admissions from "../assets/admissions.png"
 
@@ -8,6 +5,13 @@ import home from "../assets/skool-cart-home.png"
 import uniform from "../assets/uniform_sets.png"
 import admin_dashboard from "../assets/admin_dashboard.png"
 import admin_orders from "../assets/admin_orders.png"
+
+
+
+import gfhome from"../assets/gfhome.png"
+import gfadmin from "../assets/gfadmin.png"
+import gffeatured from "../assets/gffeatured.png"
+
 export const projects = [
   {
     number: '01',
@@ -34,5 +38,18 @@ export const projects = [
     col1Image1: btlkhome,
     col1Image2: admissions,
     col2Image: btlkhome,
+  },
+  {
+    number: '03',
+    category: 'Full-Stack • Catalog + Business Management • In Development',
+    name: 'Galaxy Furniture',
+    blurb:
+      'A Japandi-styled online showroom where customers browse products and reach the shop via WhatsApp, paired with an admin panel for inventory, sales, payment dues and analytics.',
+    stack: ['React', 'Node.js', 'Express', 'MongoDB Atlas', 'Mongoose', 'TailwindCSS'],
+    liveUrl: '', // add the link once it's deployed
+    accent: '#E8C9A0',
+    col1Image1: gfadmin,
+    col1Image2: gffeatured,
+    col2Image: gfhome,
   },
 ];
