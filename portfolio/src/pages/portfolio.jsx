@@ -1,18 +1,17 @@
 import HeroSection from '../components/HeroSection';
-import MarqueeSection from '../components/MarqueeSection';
 import AboutSection from '../components/AboutSection';
-import ServicesSection from '../components/ServicesSection';
 import ProjectsSection from '../components/ProjectsSection';
+import ServicesSection from '../components/ServicesSection';
 
 const Portfolio = () => {
   return (
     <div className="bg-[#0C0C0C]" style={{ overflowX: 'clip' }}>
-      <HeroSection />
-      {/* <MarqueeSection /> */}
-      <AboutSection />
-      <ProjectsSection />
-      <ServicesSection />
+      <div id="home"><HeroSection /></div>
+      <div id="about"><AboutSection /></div>
+      <div id="projects"><ProjectsSection /></div>
+      <div id="skills"><ServicesSection /></div>
       
+      {/* <div id="contact"><ContactSection /></div> */}
     </div>
   );
 };

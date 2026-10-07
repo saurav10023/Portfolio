@@ -18,19 +18,19 @@ const ABOUT_TEXT =
 const FACTS = [
   {
     label: 'Education',
-    accent: '#5EEAD4',
+    accent: '#0d9488',
     value: 'B.Tech, Computer Science',
     detail: 'BIT Mesra · Class of 2028',
   },
   {
     label: 'Shipped',
-    accent: '#A78BFA',
+    accent: '#7c3aed',
     value: 'School Cart, Bachpan School',
     detail: 'Two live products serving real users',
   },
   {
     label: 'Exploring',
-    accent: '#FB7185',
+    accent: '#e11d48',
     value: 'EDA, Feature Engineering, ML',
     detail: 'Building on a DSA and backend base',
   },
@@ -44,11 +44,6 @@ const CORNER_DECOR = [
   { src: GROUP_URL, pos: 'bottom-4 right-4 sm:bottom-6 sm:right-6 md:bottom-8 md:right-8', size: 'w-[70px] sm:w-[104px] md:w-[140px]', delay: 0.3, mobile: false, float: 'ab-float-a 12s' },
 ];
 
-/* Liquid-glass surface, shared with the Projects and Services sections. */
-const glass =
-  'bg-white/[0.05] backdrop-blur-2xl backdrop-saturate-[1.6] border border-white/[0.14] ' +
-  'shadow-[inset_0_1px_0_rgba(255,255,255,0.28),inset_0_-1px_0_rgba(255,255,255,0.05),inset_0_0_24px_rgba(255,255,255,0.03),0_24px_70px_-24px_rgba(0,0,0,0.85)]';
-
 /* Tracks the cursor and exposes --mx / --my for the specular highlight. */
 const trackPointer = (e) => {
   const el = e.currentTarget;
@@ -61,9 +56,40 @@ const AboutSection = () => {
   return (
     <section
       id="about"
-      className="relative flex min-h-screen flex-col items-center justify-center overflow-hidden px-6 py-24 sm:px-10 sm:py-28"
+      className="ab-root relative flex min-h-screen flex-col items-center justify-center overflow-hidden bg-[#e9edf3] px-6 py-24 sm:px-10 sm:py-28"
     >
       <style>{`
+        @import url("https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap");
+
+        .ab-root {
+          --ab-ink: #3b4352;
+          --ab-ink-2: #667085;
+          --ab-ink-3: #98a1b2;
+          --ab-lo: rgba(143,157,180,.5);
+          --ab-hi: rgba(255,255,255,.95);
+          font-family: "Plus Jakarta Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+          color: var(--ab-ink);
+        }
+
+        /* Neumorphic surfaces */
+        .ab-raised {
+          background: linear-gradient(145deg, #f3f5f9, #e1e6ee);
+          border: 1px solid rgba(255,255,255,.75);
+          box-shadow: 8px 8px 18px var(--ab-lo), -8px -8px 18px var(--ab-hi);
+        }
+        .ab-pressed {
+          background: linear-gradient(145deg, rgba(212,218,229,.55), rgba(241,244,248,.6));
+          border: 1px solid rgba(255,255,255,.45);
+          box-shadow: inset 3px 3px 7px rgba(143,157,180,.55), inset -3px -3px 7px var(--ab-hi);
+        }
+
+        .ab-title {
+          background: linear-gradient(100deg, #2f3745 10%, #566176 55%, #8a94a8 100%);
+          -webkit-background-clip: text; background-clip: text;
+          -webkit-text-fill-color: transparent; color: transparent;
+          padding-bottom: .06em;
+        }
+
         @keyframes ab-float-a { 0%,100% { transform: translate3d(0,0,0) rotate(0deg); } 50% { transform: translate3d(0,-14px,0) rotate(4deg); } }
         @keyframes ab-float-b { 0%,100% { transform: translate3d(0,0,0) rotate(0deg); } 50% { transform: translate3d(0,12px,0) rotate(-4deg); } }
         @keyframes ab-orb-a { 0%,100% { transform: translate3d(0,0,0); } 50% { transform: translate3d(50px,30px,0); } }
@@ -73,15 +99,24 @@ const AboutSection = () => {
         }
       `}</style>
 
-      {/* Soft colour orbs behind the glass */}
+      {/* Soft light pools and a faint dot grid behind the content */}
       <div aria-hidden="true" className="pointer-events-none absolute inset-0">
         <div
-          className="absolute left-[8%] top-[22%] h-[360px] w-[360px] rounded-full bg-[#5EEAD4] opacity-[0.14] blur-[120px]"
+          className="absolute left-[8%] top-[18%] h-[380px] w-[380px] rounded-full bg-white opacity-90 blur-[120px]"
           style={{ animation: 'ab-orb-a 20s ease-in-out infinite' }}
         />
         <div
-          className="absolute bottom-[12%] right-[6%] h-[400px] w-[400px] rounded-full bg-[#A78BFA] opacity-[0.16] blur-[130px]"
+          className="absolute bottom-[10%] right-[6%] h-[420px] w-[420px] rounded-full bg-slate-300 opacity-40 blur-[130px]"
           style={{ animation: 'ab-orb-b 24s ease-in-out infinite' }}
+        />
+        <div
+          className="absolute inset-0 opacity-50"
+          style={{
+            backgroundImage: 'radial-gradient(rgba(100,116,139,0.16) 1px, transparent 1px)',
+            backgroundSize: '28px 28px',
+            maskImage: 'radial-gradient(ellipse at center, black 25%, transparent 72%)',
+            WebkitMaskImage: 'radial-gradient(ellipse at center, black 25%, transparent 72%)',
+          }}
         />
       </div>
 
@@ -101,7 +136,7 @@ const AboutSection = () => {
             <img
               src={item.src}
               alt=""
-              className="h-auto w-full"
+              className="h-auto w-full drop-shadow-[6px_8px_10px_rgba(143,157,180,0.55)]"
               style={{ animation: `${item.float} ease-in-out infinite` }}
             />
           </FadeIn>
@@ -112,13 +147,13 @@ const AboutSection = () => {
       <div className="relative z-10 flex w-full max-w-2xl flex-col items-center gap-10 sm:gap-12">
         <div className="flex flex-col items-center gap-6">
           <FadeIn delay={0}>
-            <span className="inline-block rounded-full border border-white/15 bg-white/[0.06] px-4 py-1.5 text-[10px] uppercase tracking-[0.4em] text-[#D7E2EA]/60 shadow-[inset_0_1px_0_rgba(255,255,255,0.25)] backdrop-blur-xl sm:text-xs">
+            <span className="ab-pressed inline-block rounded-full px-4 py-1.5 text-[10px] font-semibold uppercase tracking-[0.4em] text-[color:var(--ab-ink-2)] sm:text-xs">
               Introduction
             </span>
           </FadeIn>
           <FadeIn delay={0.08} y={40}>
             <h2
-              className="hero-heading text-center font-black uppercase leading-none tracking-tight"
+              className="ab-title text-center font-black uppercase leading-none tracking-tight"
               style={{ fontSize: 'clamp(2.75rem, 10vw, 130px)' }}
             >
               About me
@@ -128,32 +163,31 @@ const AboutSection = () => {
 
         <AnimatedText
           text={ABOUT_TEXT}
-          className="max-w-[560px] text-center font-medium leading-relaxed text-[#D7E2EA]"
+          className="max-w-[560px] text-center font-medium leading-relaxed text-[color:var(--ab-ink-2)]"
           style={{ fontSize: 'clamp(1rem, 1.8vw, 1.25rem)' }}
         />
 
-        {/* One concise glass card: three facts, hairline dividers */}
+        {/* One raised card holding three pressed-in fact wells */}
         <FadeIn delay={0.2} y={30} className="w-full">
           <div
             onMouseMove={trackPointer}
-            className={`group/glass relative overflow-hidden rounded-[28px] sm:rounded-[36px] ${glass}`}
+            className="ab-raised group/glass relative overflow-hidden rounded-[28px] sm:rounded-[36px]"
           >
-            <div className="pointer-events-none absolute inset-0 rounded-[inherit] bg-gradient-to-br from-white/[0.14] via-transparent to-white/[0.03]" />
             <div
               className="pointer-events-none absolute inset-0 rounded-[inherit] opacity-0 transition-opacity duration-500 group-hover/glass:opacity-100"
               style={{
                 background:
-                  'radial-gradient(380px circle at var(--mx, 50%) var(--my, 50%), rgba(255,255,255,0.14), transparent 60%)',
+                  'radial-gradient(380px circle at var(--mx, 50%) var(--my, 50%), rgba(255,255,255,0.7), transparent 60%)',
               }}
             />
 
-            <ul className="relative divide-y divide-white/10">
+            <ul className="relative flex flex-col gap-3 p-3 sm:gap-4 sm:p-4">
               {FACTS.map((fact) => (
                 <li
                   key={fact.label}
-                  className="group/row flex flex-col gap-1.5 px-6 py-5 transition-colors duration-500 hover:bg-white/[0.05] sm:flex-row sm:items-center sm:gap-8 sm:px-8 sm:py-6"
+                  className="ab-pressed group/row flex flex-col gap-1.5 rounded-[20px] px-5 py-4 sm:flex-row sm:items-center sm:gap-8 sm:rounded-[26px] sm:px-7 sm:py-5"
                 >
-                  <span className="flex w-28 flex-shrink-0 items-center gap-2.5 text-[10px] font-semibold uppercase tracking-[0.25em] text-[#D7E2EA]/55 sm:text-[11px]">
+                  <span className="flex w-28 flex-shrink-0 items-center gap-2.5 text-[10px] font-bold uppercase tracking-[0.25em] text-[color:var(--ab-ink-3)] sm:text-[11px]">
                     <span
                       className="h-1.5 w-1.5 rounded-full transition-transform duration-500 group-hover/row:scale-150"
                       style={{ backgroundColor: fact.accent }}
@@ -161,8 +195,8 @@ const AboutSection = () => {
                     {fact.label}
                   </span>
                   <div className="min-w-0">
-                    <p className="text-base font-semibold text-[#F4F1EA] sm:text-lg">{fact.value}</p>
-                    <p className="text-xs text-[#D7E2EA]/55 sm:text-sm">{fact.detail}</p>
+                    <p className="text-base font-bold text-[color:var(--ab-ink)] sm:text-lg">{fact.value}</p>
+                    <p className="text-xs font-medium text-[color:var(--ab-ink-2)] sm:text-sm">{fact.detail}</p>
                   </div>
                 </li>
               ))}

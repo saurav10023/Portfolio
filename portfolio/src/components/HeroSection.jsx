@@ -1,30 +1,58 @@
 import { useEffect, useRef, useState } from 'react';
-import FadeIn from './FadeIn';
+import Reveal from './Reveal';
 import ContactButton from './ContactButton';
 import Navbar from './Navbar';
+import useParallax from '../../hooks/useParallax';
 import myimage from '../assets/myimage.png';
 
 /* Ratings come from the resume. */
 const RATINGS = [
-  { label: 'LeetCode', value: '1635', accent: '#FBBF24' },
-  { label: 'CodeChef', value: '1451', accent: '#A78BFA' },
-  { label: 'Codeforces', value: '1126', accent: '#38BDF8' },
+  { label: 'LeetCode', value: '1635' },
+  { label: 'CodeChef', value: '1451' },
+  { label: 'Codeforces', value: '1126' },
 ];
 
 const ROLES = ['Full-Stack Engineer', 'Backend Developer', 'Data & ML Learner'];
 
-/* Floating glass chips around the portrait. `depth` drives parallax with the tilt. */
-const CHIPS = [
-  { label: 'React', accent: '#5EEAD4', pos: 'top-[6%] -left-[10%]', delay: '0s', depth: 40 },
-  { label: 'Node.js', accent: '#A3E635', pos: 'top-[30%] -right-[12%]', delay: '1.2s', depth: 60 },
-  { label: 'MongoDB', accent: '#38BDF8', pos: 'bottom-[26%] -left-[14%]', delay: '0.6s', depth: 55 },
-  { label: 'Python · ML', accent: '#FB7185', pos: 'bottom-[4%] right-[2%]', delay: '1.8s', depth: 45 },
+/* Vertical tagline beside the portrait, and the text in the badge under it. */
+const TAGLINE = 'Build · Ship · Scale';
+const BADGE_TEXT = 'Clean code. Real products.';
+
+/* Icon-only floating badges. `depth` is the pointer-shift amount. */
+const ICONS = [
+  {
+    label: 'Full-stack development',
+    pos: 'top-[7%] -left-[8%]',
+    depth: 14,
+    path: (
+      <>
+        <polyline points="16 18 22 12 16 6" />
+        <polyline points="8 6 2 12 8 18" />
+      </>
+    ),
+  },
+  {
+    label: 'Databases',
+    pos: 'bottom-[20%] -left-[9%]',
+    depth: 18,
+    path: (
+      <>
+        <ellipse cx="12" cy="5" rx="9" ry="3" />
+        <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3" />
+        <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5" />
+      </>
+    ),
+  },
+  {
+    label: 'Data and machine learning',
+    pos: 'top-[12%] -right-[7%]',
+    depth: 20,
+    path: <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />,
+  },
 ];
 
-/* Liquid-glass surface, shared across all sections. */
-const glass =
-  'bg-white/[0.05] backdrop-blur-2xl backdrop-saturate-[1.6] border border-white/[0.14] ' +
-  'shadow-[inset_0_1px_0_rgba(255,255,255,0.28),inset_0_-1px_0_rgba(255,255,255,0.05),inset_0_0_24px_rgba(255,255,255,0.03),0_24px_70px_-24px_rgba(0,0,0,0.85)]';
+const focusRing =
+  'focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-500/60 focus-visible:ring-offset-2 focus-visible:ring-offset-[#e9edf3]';
 
 const reducedMotion = () =>
   typeof window !== 'undefined' &&
@@ -41,7 +69,7 @@ const RotatingRole = () => {
   return (
     <span
       key={i}
-      className="inline-block text-[#F4F1EA]"
+      className="inline-block text-[color:var(--hr-ink)]"
       style={{ animation: 'hr-word 600ms cubic-bezier(0.22,1,0.36,1) both' }}
     >
       {ROLES[i]}
@@ -50,10 +78,38 @@ const RotatingRole = () => {
 };
 
 const HeroSection = () => {
+  const sectionRef = useRef(null);
   const stageRef = useRef(null);
   const frame = useRef(0);
 
-  /* Pointer-driven 3D tilt: writes CSS variables, no re-renders. */
+  /* Scroll parallax layers */
+  const bgRef = useParallax(0.25); // light pools drift slowest
+  const copyRef = useParallax(0.12); // text drifts a little
+  const portraitRef = useParallax(0.07); // portrait lags the page
+
+  /* Scroll progress through the hero (0 -> 1) as a CSS variable, no re-renders. */
+  useEffect(() => {
+    if (reducedMotion()) return;
+    const el = sectionRef.current;
+    if (!el) return;
+    let raf = 0;
+    const update = () => {
+      const p = Math.min(1, Math.max(0, window.scrollY / (window.innerHeight * 0.9)));
+      el.style.setProperty('--sp', p.toFixed(3));
+    };
+    const onScroll = () => {
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(update);
+    };
+    update();
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => {
+      cancelAnimationFrame(raf);
+      window.removeEventListener('scroll', onScroll);
+    };
+  }, []);
+
+  /* Pointer-driven subtle tilt: writes CSS variables, no re-renders. */
   const onMove = (e) => {
     if (reducedMotion()) return;
     const el = stageRef.current;
@@ -63,12 +119,10 @@ const HeroSection = () => {
       const r = el.getBoundingClientRect();
       const px = (e.clientX - r.left) / r.width - 0.5;
       const py = (e.clientY - r.top) / r.height - 0.5;
-      el.style.setProperty('--rx', `${(-py * 10).toFixed(2)}deg`);
-      el.style.setProperty('--ry', `${(px * 12).toFixed(2)}deg`);
+      el.style.setProperty('--rx', `${(-py * 4).toFixed(2)}deg`);
+      el.style.setProperty('--ry', `${(px * 5).toFixed(2)}deg`);
       el.style.setProperty('--px', px.toFixed(3));
       el.style.setProperty('--py', py.toFixed(3));
-      el.style.setProperty('--mx', `${e.clientX - r.left}px`);
-      el.style.setProperty('--my', `${e.clientY - r.top}px`);
     });
   };
   const onLeave = () => {
@@ -80,75 +134,123 @@ const HeroSection = () => {
 
   return (
     <section
-      className="relative flex min-h-[100svh] flex-col overflow-hidden bg-[#0C0C0C] md:h-[100svh]"
-      style={{ overflowX: 'clip' }}
+      ref={sectionRef}
+      className="hr-root relative flex min-h-[100svh] flex-col overflow-hidden bg-[#e9edf3] md:h-[100svh]"
+      style={{ overflowX: 'clip', '--sp': 0 }}
     >
       <style>{`
-        @keyframes hr-word { from { opacity: 0; transform: translateY(10px); filter: blur(6px); } to { opacity: 1; transform: none; filter: blur(0); } }
-        @keyframes hr-chip { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-10px); } }
-        @keyframes hr-orb-a { 0%,100% { transform: translate3d(0,0,0); } 50% { transform: translate3d(70px,50px,0); } }
-        @keyframes hr-orb-b { 0%,100% { transform: translate3d(0,0,0); } 50% { transform: translate3d(-80px,-40px,0); } }
-        @keyframes hr-spin { to { transform: rotate(360deg); } }
-        @keyframes hr-pulse { 0% { box-shadow: 0 0 0 0 rgba(94,234,212,0.55); } 100% { box-shadow: 0 0 0 10px rgba(94,234,212,0); } }
-        @keyframes hr-shine { from { transform: translateX(-120%) skewX(-18deg); } to { transform: translateX(260%) skewX(-18deg); } }
+        @import url("https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap");
+
+        .hr-root {
+          --hr-ink: #3b4352;
+          --hr-ink-2: #667085;
+          --hr-ink-3: #98a1b2;
+          --hr-lo: rgba(143,157,180,.5);
+          --hr-hi: rgba(255,255,255,.95);
+          font-family: "Plus Jakarta Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+          color: var(--hr-ink);
+        }
+
+        /* Neumorphic surfaces */
+        .hr-raised {
+          background: linear-gradient(145deg, #f7f8fb, #e4e8ef);
+          border: 1px solid rgba(255,255,255,.85);
+          box-shadow: 10px 12px 28px rgba(143,157,180,.45), -8px -8px 22px var(--hr-hi);
+        }
+        .hr-raised-sm {
+          background: linear-gradient(145deg, #f3f5f9, #e1e6ee);
+          border: 1px solid rgba(255,255,255,.75);
+          box-shadow: 4px 4px 10px var(--hr-lo), -4px -4px 10px var(--hr-hi);
+        }
+        .hr-pressed {
+          background: linear-gradient(145deg, rgba(212,218,229,.55), rgba(241,244,248,.6));
+          border: 1px solid rgba(255,255,255,.45);
+          box-shadow: inset 3px 3px 7px rgba(143,157,180,.55), inset -3px -3px 7px var(--hr-hi);
+        }
+
+        .hr-btn-ghost {
+          background: linear-gradient(145deg, rgba(244,246,250,.8), rgba(228,232,240,.55));
+          border: 1px solid rgba(255,255,255,.9);
+          box-shadow: 5px 5px 12px rgba(143,157,180,.45), -5px -5px 12px rgba(255,255,255,.95);
+          transition: box-shadow .3s ease, transform .25s ease, color .3s ease;
+        }
+        .hr-btn-ghost:hover { transform: translateY(-2px); }
+        .hr-btn-ghost:active {
+          transform: scale(.98);
+          box-shadow: inset 3px 3px 7px var(--hr-lo), inset -3px -3px 7px var(--hr-hi);
+        }
+
         .hr-name {
-          background: linear-gradient(100deg, #F4F1EA 10%, #5EEAD4 40%, #A78BFA 70%, #FB7185 95%);
+          background: linear-gradient(100deg, #2f3745 10%, #566176 45%, #8a94a8 70%, #4a5568 95%);
           background-size: 220% 100%;
           -webkit-background-clip: text; background-clip: text;
           -webkit-text-fill-color: transparent; color: transparent;
           animation: hr-grad 9s ease-in-out infinite alternate;
         }
+
+        @keyframes hr-word { from { opacity: 0; transform: translateY(10px); filter: blur(6px); } to { opacity: 1; transform: none; filter: blur(0); } }
+        @keyframes hr-orb-a { 0%,100% { transform: translate3d(0,0,0); } 50% { transform: translate3d(70px,50px,0); } }
+        @keyframes hr-orb-b { 0%,100% { transform: translate3d(0,0,0); } 50% { transform: translate3d(-80px,-40px,0); } }
+        @keyframes hr-pulse { 0% { box-shadow: 0 0 0 0 rgba(13,148,136,0.45); } 100% { box-shadow: 0 0 0 10px rgba(13,148,136,0); } }
+        @keyframes hr-shine { from { transform: translateX(-120%) skewX(-18deg); } to { transform: translateX(260%) skewX(-18deg); } }
         @keyframes hr-grad { from { background-position: 0% 50%; } to { background-position: 100% 50%; } }
+        @keyframes hr-cue { 0% { transform: translateY(0); opacity: 0; } 30% { opacity: 1; } 100% { transform: translateY(12px); opacity: 0; } }
         @media (prefers-reduced-motion: reduce) {
           [style*="hr-"], .hr-name { animation: none !important; }
         }
       `}</style>
 
-      {/* Colour orbs, dot grid and vignette behind the glass */}
-      <div aria-hidden="true" className="pointer-events-none absolute inset-0">
+      {/* Soft light pools and dot grid. Parallax layer: drifts slower than the page. */}
+      <div
+        ref={bgRef}
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-x-0 -top-[30%] h-[130%]"
+      >
         <div
-          className="absolute -left-32 top-10 h-[520px] w-[520px] rounded-full bg-[#5EEAD4] opacity-[0.22] blur-[140px]"
+          className="absolute -left-32 top-[22%] h-[520px] w-[520px] rounded-full bg-white opacity-90 blur-[130px]"
           style={{ animation: 'hr-orb-a 20s ease-in-out infinite' }}
         />
         <div
-          className="absolute -right-32 bottom-0 h-[560px] w-[560px] rounded-full bg-[#A78BFA] opacity-[0.26] blur-[150px]"
+          className="absolute -right-32 bottom-[10%] h-[560px] w-[560px] rounded-full bg-slate-300 opacity-40 blur-[150px]"
           style={{ animation: 'hr-orb-b 24s ease-in-out infinite' }}
         />
         <div
-          className="absolute left-1/2 top-1/3 h-[360px] w-[360px] -translate-x-1/2 rounded-full bg-[#FB7185] opacity-[0.10] blur-[130px]"
+          className="absolute left-1/2 top-[40%] h-[360px] w-[360px] -translate-x-1/2 rounded-full bg-white opacity-70 blur-[130px]"
           style={{ animation: 'hr-orb-a 28s ease-in-out infinite reverse' }}
         />
         <div
-          className="absolute inset-0 opacity-[0.35]"
+          className="absolute inset-0 opacity-[0.5]"
           style={{
-            backgroundImage: 'radial-gradient(rgba(255,255,255,0.12) 1px, transparent 1px)',
+            backgroundImage: 'radial-gradient(rgba(100,116,139,0.16) 1px, transparent 1px)',
             backgroundSize: '28px 28px',
             maskImage: 'radial-gradient(ellipse at center, black 30%, transparent 75%)',
             WebkitMaskImage: 'radial-gradient(ellipse at center, black 30%, transparent 75%)',
           }}
         />
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,rgba(255,255,255,0.05),transparent_60%)]" />
       </div>
 
+      {/* Keep Navbar outside every transformed layer so `fixed` keeps working */}
       <Navbar />
 
       <div className="relative z-10 mx-auto grid w-full max-w-7xl flex-1 grid-cols-1 items-center gap-10 px-6 pb-10 pt-24 sm:pt-28 md:grid-cols-[1fr_1fr] md:gap-6 md:px-10 md:pb-8 md:pt-24">
         {/* ---------------- Left: copy ---------------- */}
-        <div className="order-2 flex flex-col items-start gap-5 md:order-1 md:gap-[clamp(0.75rem,2.2svh,1.5rem)]">
-          <FadeIn delay={0.05} y={20}>
-            <span
-              className={`inline-flex items-center gap-2.5 rounded-full px-4 py-2 text-[10px] font-medium uppercase tracking-[0.3em] text-[#D7E2EA]/75 sm:text-xs ${glass}`}
-            >
+        <div
+          ref={copyRef}
+          className="order-2 flex flex-col items-start gap-5 md:order-1 md:gap-[clamp(0.75rem,2.2svh,1.5rem)]"
+          style={{ opacity: 'calc(1 - var(--sp, 0) * 1.3)' }}
+        >
+          <Reveal delay={50} y={20}>
+            <span className="hr-pressed inline-flex items-center gap-2.5 rounded-full px-4 py-2 text-[10px] font-semibold uppercase tracking-[0.3em] text-[color:var(--hr-ink-2)] sm:text-xs">
               <span
-                className="h-2 w-2 rounded-full bg-[#5EEAD4]"
+                className="h-2 w-2 rounded-full bg-teal-600"
                 style={{ animation: 'hr-pulse 1.8s ease-out infinite' }}
               />
               Ranchi, India · CS&apos;28 · BIT Mesra
             </span>
-          </FadeIn>
+          </Reveal>
 
-          <FadeIn delay={0.15} y={40}>
-            <h1 className="hero-heading font-black uppercase leading-[0.9] tracking-tighter text-[#D7E2EA]">
+          <Reveal delay={150} y={40}>
+            <h1 className="hero-heading font-black uppercase leading-[0.9] tracking-tighter text-[color:var(--hr-ink-2)]">
               <span className="block text-[10vw] sm:text-[6.5vw] md:text-[min(3.4vw,5.5svh)]">
                 Hi, I&apos;m
               </span>
@@ -156,29 +258,29 @@ const HeroSection = () => {
                 Saurav
               </span>
             </h1>
-          </FadeIn>
+          </Reveal>
 
-          <FadeIn delay={0.28} y={20}>
-            <p className="text-sm font-semibold uppercase tracking-[0.22em] text-[#D7E2EA]/55 sm:text-base">
+          <Reveal delay={280} y={20}>
+            <p className="text-sm font-bold uppercase tracking-[0.22em] text-[color:var(--hr-ink-3)] sm:text-base">
               <RotatingRole />
             </p>
-          </FadeIn>
+          </Reveal>
 
-          <FadeIn delay={0.38} y={20}>
+          <Reveal delay={380} y={20}>
             <p
-              className="max-w-[480px] leading-relaxed text-[#D7E2EA]/70"
+              className="max-w-[480px] leading-relaxed text-[color:var(--hr-ink-2)]"
               style={{ fontSize: 'clamp(0.95rem, 1.35vw, 1.15rem)' }}
             >
               I build fast, secure, production-grade web apps end to end, now adding data
               analysis and machine learning.
             </p>
-          </FadeIn>
+          </Reveal>
 
-          <FadeIn delay={0.48} y={20} className="flex flex-wrap items-center gap-4">
+          <Reveal delay={480} y={20} className="flex flex-wrap items-center gap-4">
             <ContactButton />
             <a
               href="#projects"
-              className={`group/btn relative overflow-hidden rounded-full px-7 py-3.5 text-xs font-semibold uppercase tracking-[0.2em] text-[#F4F1EA] transition-all duration-500 hover:-translate-y-0.5 hover:bg-white/[0.1] focus:outline-none focus-visible:ring-2 focus-visible:ring-white/50 sm:text-sm ${glass}`}
+              className={`hr-btn-ghost group/btn relative overflow-hidden rounded-full px-7 py-3.5 text-xs font-bold uppercase tracking-[0.2em] text-[color:var(--hr-ink)] sm:text-sm ${focusRing}`}
             >
               <span className="relative z-10 flex items-center gap-2">
                 View work
@@ -186,137 +288,170 @@ const HeroSection = () => {
               </span>
               <span
                 aria-hidden="true"
-                className="pointer-events-none absolute inset-y-0 left-0 w-1/3 bg-gradient-to-r from-transparent via-white/25 to-transparent opacity-0 group-hover/btn:opacity-100"
+                className="pointer-events-none absolute inset-y-0 left-0 w-1/3 bg-gradient-to-r from-transparent via-white/90 to-transparent opacity-0 group-hover/btn:opacity-100"
                 style={{ animation: 'hr-shine 1.1s ease-out' }}
               />
             </a>
-          </FadeIn>
+          </Reveal>
 
-          {/* Glass ratings bar */}
-          <FadeIn delay={0.58} y={20} className="w-full max-w-[520px]">
-            <div className={`grid grid-cols-3 divide-x divide-white/10 overflow-hidden rounded-[26px] ${glass}`}>
+          {/* Ratings: an inset well */}
+          <Reveal delay={580} y={20} className="w-full max-w-[520px]">
+            <div className="hr-pressed grid grid-cols-3 divide-x divide-slate-400/25 overflow-hidden rounded-[26px]">
               {RATINGS.map((r) => (
                 <div
                   key={r.label}
-                  className="group/r relative flex flex-col gap-1 px-4 py-3 transition-colors duration-500 hover:bg-white/[0.06] sm:px-6"
+                  className="group/r relative flex flex-col gap-1 px-4 py-3 transition-colors duration-500 hover:bg-white/40 sm:px-6"
                 >
-                  <span className="font-mono text-lg font-semibold tabular-nums text-[#F4F1EA] sm:text-xl">
+                  <span className="font-mono text-lg font-semibold tabular-nums text-[color:var(--hr-ink)] sm:text-xl">
                     {r.value}
                   </span>
-                  <span className="text-[10px] uppercase tracking-[0.2em] text-[#D7E2EA]/50 sm:text-[11px]">
+                  <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[color:var(--hr-ink-3)] sm:text-[11px]">
                     {r.label}
                   </span>
-                  <span
-                    className="absolute bottom-0 left-4 right-4 h-[2px] origin-left scale-x-[0.25] rounded-full transition-transform duration-500 group-hover/r:scale-x-100 sm:left-6 sm:right-6"
-                    style={{ backgroundColor: r.accent }}
-                  />
+                  <span className="absolute bottom-0 left-4 right-4 h-[2px] origin-left scale-x-[0.2] rounded-full bg-slate-500/70 transition-transform duration-500 group-hover/r:scale-x-100 sm:left-6 sm:right-6" />
                 </div>
               ))}
             </div>
-          </FadeIn>
+          </Reveal>
         </div>
 
-        {/* ---------------- Right: tilting glass portrait ---------------- */}
-        <div className="order-1 flex items-center justify-center md:order-2 md:justify-end md:pr-4">
-          <FadeIn delay={0.35} y={30} className="relative w-[230px] sm:w-[290px] md:w-[min(400px,46svh)] lg:w-[min(480px,52svh)]">
-            <div
-              ref={stageRef}
-              onMouseMove={onMove}
-              onMouseLeave={onLeave}
-              className="relative aspect-[5/6] w-full"
-              style={{ perspective: '1200px', '--rx': '0', '--ry': '0', '--px': '0', '--py': '0' }}
+        {/* ---------------- Right: portrait ---------------- */}
+        <div className="order-1 flex items-center justify-center md:order-2 md:justify-end md:pr-8">
+          <div ref={portraitRef}>
+            <Reveal
+              delay={350}
+              y={30}
+              className="relative w-[240px] sm:w-[300px] md:w-[min(380px,44svh)] lg:w-[min(440px,50svh)]"
             >
-              {/* Tilting card */}
               <div
-                className="group/glass absolute inset-0 transition-transform duration-300 ease-out"
+                ref={stageRef}
+                onMouseMove={onMove}
+                onMouseLeave={onLeave}
+                className="relative aspect-[4/5] w-full"
                 style={{
-                  transformStyle: 'preserve-3d',
-                  transform: 'rotateX(var(--rx)) rotateY(var(--ry))',
+                  perspective: '1400px',
+                  '--rx': '0',
+                  '--ry': '0',
+                  '--px': '0',
+                  '--py': '0',
+                  transform: 'scale(calc(1 - var(--sp, 0) * 0.08))',
                 }}
               >
-                {/* Rotating light-catch ring behind the glass */}
-                <div className="absolute -inset-[3px] overflow-hidden rounded-[44px] sm:rounded-[56px]">
-                  <div
-                    className="absolute left-1/2 top-1/2 aspect-square w-[160%] -translate-x-1/2 -translate-y-1/2 opacity-70"
-                    style={{
-                      background:
-                        'conic-gradient(from 0deg, transparent 0%, #5EEAD4 12%, transparent 28%, transparent 50%, #A78BFA 64%, transparent 80%, #FB7185 92%, transparent 100%)',
-                      animation: 'hr-spin 9s linear infinite',
-                    }}
-                  />
-                </div>
-
-                {/* Glass frame */}
-                <div className={`absolute inset-0 rounded-[42px] p-3 sm:rounded-[54px] sm:p-4 ${glass} !bg-[#101114]/70`}>
-                  <div className="pointer-events-none absolute inset-0 rounded-[inherit] bg-gradient-to-br from-white/[0.16] via-transparent to-white/[0.04]" />
-                  <div
-                    className="pointer-events-none absolute inset-0 rounded-[inherit] opacity-0 transition-opacity duration-500 group-hover/glass:opacity-100"
-                    style={{
-                      background:
-                        'radial-gradient(320px circle at var(--mx, 50%) var(--my, 50%), rgba(255,255,255,0.16), transparent 60%)',
-                    }}
-                  />
-
-                  {/* Portrait */}
-                  <div className="relative h-full w-full overflow-hidden rounded-[30px] bg-[#0B0F14] ring-1 ring-white/10 sm:rounded-[40px]">
-                    <img
-                      src={myimage}
-                      alt="Kumar Saurav, full-stack developer"
-                      className="h-full w-full select-none object-cover transition-transform duration-[900ms] ease-out group-hover/glass:scale-[1.04]"
-                      style={{ objectPosition: '50% 22%' }}
-                      draggable={false}
-                    />
-                    <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-[#0C0C0C]/55 via-transparent to-transparent" />
-                    <div className="pointer-events-none absolute inset-0 rounded-[inherit] shadow-[inset_0_0_40px_rgba(0,0,0,0.3)]" />
-                  </div>
-                </div>
-
-                {/* Live-project glass card, lifted forward in 3D */}
+                {/* Offset backing plate for depth */}
                 <div
-                  className={`absolute -bottom-5 left-1/2 flex -translate-x-1/2 items-center gap-3 whitespace-nowrap rounded-full px-4 py-2.5 sm:px-5 ${glass} !bg-[#131417]/70`}
-                  style={{ transform: 'translateX(-50%) translateZ(70px)' }}
-                >
-                  <span
-                    className="h-2 w-2 rounded-full bg-[#5EEAD4]"
-                    style={{ animation: 'hr-pulse 1.8s ease-out infinite' }}
-                  />
-                  <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[#F4F1EA] sm:text-xs">
-                    School Cart
-                  </span>
-                  <span className="text-[10px] uppercase tracking-[0.2em] text-[#D7E2EA]/50 sm:text-xs">
-                    Live in production
-                  </span>
-                </div>
-              </div>
+                  aria-hidden="true"
+                  className="hr-pressed absolute inset-0 translate-x-4 translate-y-4 rounded-[36px] sm:translate-x-5 sm:translate-y-5 sm:rounded-[44px]"
+                />
 
-              {/* Floating glass chips: parallax layer above the card */}
-              {CHIPS.map((chip) => (
+                {/* Card with a gentle tilt */}
                 <div
-                  key={chip.label}
-                  className={`absolute ${chip.pos} hidden sm:block`}
+                  className="group/card absolute inset-0 transition-transform duration-300 ease-out"
                   style={{
-                    transform: `translate3d(calc(var(--px) * ${chip.depth}px), calc(var(--py) * ${chip.depth}px), 0)`,
-                    transition: 'transform 300ms ease-out',
+                    transformStyle: 'preserve-3d',
+                    transform: 'rotateX(var(--rx)) rotateY(var(--ry))',
                   }}
                 >
+                  <div className="hr-raised absolute inset-0 rounded-[36px] p-2 sm:rounded-[44px] sm:p-2.5">
+                    <div className="relative h-full w-full overflow-hidden rounded-[28px] sm:rounded-[35px]">
+                      <img
+                        src={myimage}
+                        alt="Kumar Saurav, full-stack developer"
+                        className="h-full w-full select-none object-cover transition-transform duration-700 ease-out group-hover/card:scale-[1.03]"
+                        style={{ objectPosition: '50% 22%' }}
+                        draggable={false}
+                      />
+                      <div className="pointer-events-none absolute inset-0 rounded-[inherit] ring-1 ring-inset ring-black/5" />
+                    </div>
+                  </div>
+
+                  {/* Tagline badge */}
                   <div
-                    className={`flex items-center gap-2 rounded-full px-4 py-2.5 ${glass} !bg-[#131417]/60`}
-                    style={{ animation: 'hr-chip 5s ease-in-out infinite', animationDelay: chip.delay }}
+                    className="hr-raised-sm absolute -bottom-4 left-1/2 flex items-center gap-3 whitespace-nowrap rounded-full py-1.5 pl-1.5 pr-4 sm:pr-5"
+                    style={{ transform: 'translateX(-50%) translateZ(40px)' }}
                   >
-                    <span
-                      className="h-2 w-2 rounded-full"
-                      style={{ backgroundColor: chip.accent, boxShadow: `0 0 12px ${chip.accent}` }}
-                    />
-                    <span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#F4F1EA]">
-                      {chip.label}
+                    <span className="hr-pressed flex h-8 w-8 items-center justify-center rounded-full text-teal-600 sm:h-9 sm:w-9">
+                      <svg
+                        viewBox="0 0 24 24"
+                        className="h-4 w-4 sm:h-[18px] sm:w-[18px]"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="1.8"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        aria-hidden="true"
+                      >
+                        <path d="M13 2 4 14h7l-1 8 9-12h-7l1-8z" />
+                      </svg>
+                    </span>
+                    <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-[color:var(--hr-ink)] sm:text-xs">
+                      {BADGE_TEXT}
                     </span>
                   </div>
                 </div>
-              ))}
-            </div>
-          </FadeIn>
+
+                {/* Icon-only floating badges, with a light pointer shift */}
+                {ICONS.map((ic) => (
+                  <div
+                    key={ic.label}
+                    className={`absolute ${ic.pos} hidden sm:block`}
+                    style={{
+                      transform: `translate3d(calc(var(--px) * ${ic.depth}px), calc(var(--py) * ${ic.depth}px), 0)`,
+                      transition: 'transform 300ms ease-out',
+                    }}
+                  >
+                    <div
+                      className="hr-raised-sm flex h-11 w-11 items-center justify-center rounded-full text-[color:var(--hr-ink-2)] transition-colors duration-300 hover:text-teal-600"
+                      title={ic.label}
+                      role="img"
+                      aria-label={ic.label}
+                    >
+                      <svg
+                        viewBox="0 0 24 24"
+                        className="h-5 w-5"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="1.8"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        aria-hidden="true"
+                      >
+                        {ic.path}
+                      </svg>
+                    </div>
+                  </div>
+                ))}
+
+                {/* Vertical tagline along the right edge */}
+                <div
+                  aria-hidden="true"
+                  className="pointer-events-none absolute -right-8 top-1/2 hidden -translate-y-1/2 md:flex md:items-center md:gap-3 lg:-right-10"
+                  style={{ writingMode: 'vertical-rl', transform: 'translateY(-50%) rotate(180deg)' }}
+                >
+                  <span className="h-10 w-px bg-gradient-to-b from-transparent via-slate-400/60 to-transparent" />
+                  <span className="text-[10px] font-bold uppercase tracking-[0.35em] text-[color:var(--hr-ink-3)]">
+                    {TAGLINE}
+                  </span>
+                </div>
+              </div>
+            </Reveal>
+          </div>
         </div>
       </div>
+
+      {/* Scroll cue: fades out as you scroll, only when the screen is tall enough */}
+      <a
+        href="#about"
+        aria-label="Scroll to About"
+        className={`absolute bottom-3 left-1/2 z-10 hidden -translate-x-1/2 flex-col items-center gap-2 rounded-full ${focusRing} [@media(min-width:768px)_and_(min-height:760px)]:flex`}
+        style={{ opacity: 'calc(1 - var(--sp, 0) * 6)' }}
+      >
+        <span className="hr-pressed flex h-9 w-6 justify-center rounded-full pt-2">
+          <span
+            className="h-1.5 w-1 rounded-full bg-slate-500"
+            style={{ animation: 'hr-cue 1.8s ease-in-out infinite' }}
+          />
+        </span>
+      </a>
     </section>
   );
 };
