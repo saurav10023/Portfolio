@@ -5,20 +5,34 @@ import Navbar from './Navbar';
 import useParallax from '../../hooks/useParallax';
 import myimage from '../assets/myimage.png';
 
-/* Ratings come from the resume. */
-const RATINGS = [
-  { label: 'LeetCode', value: '1635' },
-  { label: 'CodeChef', value: '1451' },
-  { label: 'Codeforces', value: '1126' },
+/* Coding profiles. Each card opens the live profile in a new tab. */
+const PROFILES = [
+  {
+    name: 'LeetCode',
+    handle: 'codebot216',
+    mark: 'LC',
+    url: 'https://leetcode.com/u/codebot216/',
+  },
+  {
+    name: 'Codeforces',
+    handle: 'sauravsonu216',
+    mark: 'CF',
+    url: 'https://codeforces.com/profile/sauravsonu216',
+  },
+  {
+    name: 'CodeChef',
+    handle: 'codebot216',
+    mark: 'CC',
+    url: 'https://www.codechef.com/users/codebot216',
+  },
 ];
 
-const ROLES = ['Full-Stack Engineer', 'Backend Developer', 'Data & ML Learner'];
+const ROLES = ['Full-stack engineer', 'Backend developer', 'Data and ML learner'];
 
-/* Vertical tagline beside the portrait, and the text in the badge under it. */
-const TAGLINE = 'Build · Ship · Scale';
+const TAGLINE = 'Build, ship, scale';
 const BADGE_TEXT = 'Clean code. Real products.';
 
-/* Icon-only floating badges. `depth` is the pointer-shift amount. */
+/* Icon-only floating badges. `depth` is the pointer-shift amount (desktop only). */
 const ICONS = [
   {
     label: 'Full-stack development',
@@ -56,7 +70,8 @@ const focusRing =
 
 const reducedMotion = () =>
   typeof window !== 'undefined' &&
-  window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+  typeof window.matchMedia === 'function' &&
+  window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 /* Cycles through roles with a soft rise-and-fade swap. */
 const RotatingRole = () => {
@@ -67,15 +82,27 @@ const RotatingRole = () => {
     return () => clearInterval(t);
   }, []);
   return (
-    <span
-      key={i}
-      className="inline-block text-[color:var(--hr-ink)]"
-      style={{ animation: 'hr-word 600ms cubic-bezier(0.22,1,0.36,1) both' }}
-    >
+    <span key={i} className="hr-word inline-block text-[color:var(--hr-ink)]">
       {ROLES[i]}
     </span>
   );
 };
+
+const ArrowUpRight = () => (
+  <svg
+    viewBox="0 0 24 24"
+    className="h-4 w-4"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    aria-hidden="true"
+  >
+    <path d="M7 17 17 7" />
+    <path d="M8 7h9v9" />
+  </svg>
+);
 
 const HeroSection = () => {
   const sectionRef = useRef(null);
@@ -83,9 +110,9 @@ const HeroSection = () => {
   const frame = useRef(0);
 
   /* Scroll parallax layers */
-  const bgRef = useParallax(0.25); // light pools drift slowest
-  const copyRef = useParallax(0.12); // text drifts a little
-  const portraitRef = useParallax(0.07); // portrait lags the page
+  const bgRef = useParallax(0.25);
+  const copyRef = useParallax(0.12);
+  const portraitRef = useParallax(0.07);
 
   /* Scroll progress through the hero (0 -> 1) as a CSS variable, no re-renders. */
   useEffect(() => {
@@ -109,16 +136,17 @@ const HeroSection = () => {
     };
   }, []);
 
-  /* Pointer-driven subtle tilt: writes CSS variables, no re-renders. */
+  /* Pointer tilt. Mouse only: touch and pen are ignored so phones never run it. */
   const onMove = (e) => {
-    if (reducedMotion()) return;
+    if (e.pointerType !== 'mouse' || reducedMotion()) return;
     const el = stageRef.current;
     if (!el) return;
+    const { clientX, clientY } = e;
     cancelAnimationFrame(frame.current);
     frame.current = requestAnimationFrame(() => {
       const r = el.getBoundingClientRect();
-      const px = (e.clientX - r.left) / r.width - 0.5;
-      const py = (e.clientY - r.top) / r.height - 0.5;
+      const px = (clientX - r.left) / r.width - 0.5;
+      const py = (clientY - r.top) / r.height - 0.5;
       el.style.setProperty('--rx', `${(-py * 4).toFixed(2)}deg`);
       el.style.setProperty('--ry', `${(px * 5).toFixed(2)}deg`);
       el.style.setProperty('--px', px.toFixed(3));
@@ -129,22 +157,26 @@ const HeroSection = () => {
     const el = stageRef.current;
     if (!el) return;
     cancelAnimationFrame(frame.current);
-    ['--rx', '--ry', '--px', '--py'].forEach((k) => el.style.setProperty(k, '0'));
+    el.style.setProperty('--rx', '0deg');
+    el.style.setProperty('--ry', '0deg');
+    el.style.setProperty('--px', '0');
+    el.style.setProperty('--py', '0');
   };
 
   return (
     <section
       ref={sectionRef}
       className="hr-root relative flex min-h-[100svh] flex-col overflow-hidden bg-[#e9edf3] md:h-[100svh]"
-      style={{ overflowX: 'clip', '--sp': 0 }}
+      style={{ '--sp': 0 }}
     >
       <style>{`
         @import url("https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap");
 
         .hr-root {
-          --hr-ink: #3b4352;
-          --hr-ink-2: #667085;
-          --hr-ink-3: #98a1b2;
+          --hr-ink: #333b4a;
+          --hr-ink-2: #5d6779;
+          --hr-ink-3: #8791a3;
+          --hr-accent: #0f766e;
           --hr-lo: rgba(143,157,180,.5);
           --hr-hi: rgba(255,255,255,.95);
           font-family: "Plus Jakarta Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
@@ -180,59 +212,79 @@ const HeroSection = () => {
           box-shadow: inset 3px 3px 7px var(--hr-lo), inset -3px -3px 7px var(--hr-hi);
         }
 
+        /* Profile cards */
+        .hr-link {
+          background: linear-gradient(145deg, #f5f7fa, #e3e7ee);
+          border: 1px solid rgba(255,255,255,.85);
+          box-shadow: 5px 5px 12px rgba(143,157,180,.42), -5px -5px 12px rgba(255,255,255,.95);
+          transition: transform .25s ease, box-shadow .25s ease;
+        }
+        .hr-link:hover { transform: translateY(-3px); }
+        .hr-link:active {
+          transform: scale(.98);
+          box-shadow: inset 3px 3px 7px var(--hr-lo), inset -3px -3px 7px var(--hr-hi);
+        }
+        .hr-link:hover .hr-link-arrow { transform: translate(2px, -2px); color: var(--hr-accent); }
+        .hr-link-arrow { transition: transform .25s ease, color .25s ease; }
+
         .hr-name {
-          background: linear-gradient(100deg, #2f3745 10%, #566176 45%, #8a94a8 70%, #4a5568 95%);
+          background: linear-gradient(100deg, #2b3340 10%, #4f5a70 45%, #7c869b 70%, #3f4859 95%);
           background-size: 220% 100%;
           -webkit-background-clip: text; background-clip: text;
           -webkit-text-fill-color: transparent; color: transparent;
-          animation: hr-grad 9s ease-in-out infinite alternate;
         }
 
-        @keyframes hr-word { from { opacity: 0; transform: translateY(10px); filter: blur(6px); } to { opacity: 1; transform: none; filter: blur(0); } }
-        @keyframes hr-orb-a { 0%,100% { transform: translate3d(0,0,0); } 50% { transform: translate3d(70px,50px,0); } }
-        @keyframes hr-orb-b { 0%,100% { transform: translate3d(0,0,0); } 50% { transform: translate3d(-80px,-40px,0); } }
+        /* Light pools: plain radial gradients, no blur filters (cheap on phones) */
+        .hr-pool { position: absolute; border-radius: 9999px; will-change: auto; }
+        .hr-pool-a { background: radial-gradient(circle, rgba(255,255,255,.95) 0%, rgba(255,255,255,0) 68%); }
+        .hr-pool-b { background: radial-gradient(circle, rgba(148,163,184,.45) 0%, rgba(148,163,184,0) 68%); }
+
+        .hr-pulse { animation: hr-pulse 1.8s ease-out infinite; }
+        .hr-word  { animation: hr-word 600ms cubic-bezier(0.22,1,0.36,1) both; }
+        .hr-cue   { animation: hr-cue 1.8s ease-in-out infinite; }
+
+        @keyframes hr-word { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
         @keyframes hr-pulse { 0% { box-shadow: 0 0 0 0 rgba(13,148,136,0.45); } 100% { box-shadow: 0 0 0 10px rgba(13,148,136,0); } }
-        @keyframes hr-shine { from { transform: translateX(-120%) skewX(-18deg); } to { transform: translateX(260%) skewX(-18deg); } }
-        @keyframes hr-grad { from { background-position: 0% 50%; } to { background-position: 100% 50%; } }
         @keyframes hr-cue { 0% { transform: translateY(0); opacity: 0; } 30% { opacity: 1; } 100% { transform: translateY(12px); opacity: 0; } }
+        @keyframes hr-orb-a { 0%,100% { transform: translate3d(0,0,0); } 50% { transform: translate3d(60px,40px,0); } }
+        @keyframes hr-orb-b { 0%,100% { transform: translate3d(0,0,0); } 50% { transform: translate3d(-70px,-30px,0); } }
+        @keyframes hr-grad { from { background-position: 0% 50%; } to { background-position: 100% 50%; } }
+
+        /* Ambient motion only on larger screens, and only if the user allows motion */
+        @media (min-width: 768px) and (prefers-reduced-motion: no-preference) {
+          .hr-pool-a { animation: hr-orb-a 22s ease-in-out infinite; }
+          .hr-pool-b { animation: hr-orb-b 26s ease-in-out infinite; }
+          .hr-name { animation: hr-grad 9s ease-in-out infinite alternate; }
+        }
         @media (prefers-reduced-motion: reduce) {
-          [style*="hr-"], .hr-name { animation: none !important; }
+          .hr-word, .hr-pulse, .hr-cue, .hr-link, .hr-btn-ghost { animation: none !important; transition: none !important; }
         }
       `}</style>
 
-      {/* Soft light pools and dot grid. Parallax layer: drifts slower than the page. */}
+      {/* Background light pools and dot grid (parallax layer) */}
       <div
         ref={bgRef}
         aria-hidden="true"
         className="pointer-events-none absolute inset-x-0 -top-[30%] h-[130%]"
       >
+        <div className="hr-pool hr-pool-a -left-40 top-[20%] h-[480px] w-[480px] md:h-[640px] md:w-[640px]" />
+        <div className="hr-pool hr-pool-b -right-40 bottom-[8%] h-[480px] w-[480px] md:h-[680px] md:w-[680px]" />
+        <div className="hr-pool hr-pool-a left-1/2 top-[38%] h-[360px] w-[360px] -translate-x-1/2 opacity-80 md:h-[460px] md:w-[460px]" />
         <div
-          className="absolute -left-32 top-[22%] h-[520px] w-[520px] rounded-full bg-white opacity-90 blur-[130px]"
-          style={{ animation: 'hr-orb-a 20s ease-in-out infinite' }}
-        />
-        <div
-          className="absolute -right-32 bottom-[10%] h-[560px] w-[560px] rounded-full bg-slate-300 opacity-40 blur-[150px]"
-          style={{ animation: 'hr-orb-b 24s ease-in-out infinite' }}
-        />
-        <div
-          className="absolute left-1/2 top-[40%] h-[360px] w-[360px] -translate-x-1/2 rounded-full bg-white opacity-70 blur-[130px]"
-          style={{ animation: 'hr-orb-a 28s ease-in-out infinite reverse' }}
-        />
-        <div
-          className="absolute inset-0 opacity-[0.5]"
+          className="absolute inset-0 opacity-50"
           style={{
             backgroundImage: 'radial-gradient(rgba(100,116,139,0.16) 1px, transparent 1px)',
             backgroundSize: '28px 28px',
-            maskImage: 'radial-gradient(ellipse at center, black 30%, transparent 75%)',
             WebkitMaskImage: 'radial-gradient(ellipse at center, black 30%, transparent 75%)',
+            maskImage: 'radial-gradient(ellipse at center, black 30%, transparent 75%)',
           }}
         />
       </div>
 
-      {/* Keep Navbar outside every transformed layer so `fixed` keeps working */}
+      {/* Navbar stays outside every transformed layer so `fixed` keeps working */}
       <Navbar />
 
-      <div className="relative z-10 mx-auto grid w-full max-w-7xl flex-1 grid-cols-1 items-center gap-10 px-6 pb-10 pt-24 sm:pt-28 md:grid-cols-[1fr_1fr] md:gap-6 md:px-10 md:pb-8 md:pt-24">
+      <div className="relative z-10 mx-auto grid w-full max-w-7xl flex-1 grid-cols-1 items-center gap-10 px-5 pb-12 pt-24 sm:px-6 sm:pt-28 md:grid-cols-2 md:gap-6 md:px-10 md:pb-8 md:pt-24">
         {/* ---------------- Left: copy ---------------- */}
         <div
           ref={copyRef}
@@ -240,28 +292,25 @@ const HeroSection = () => {
           style={{ opacity: 'calc(1 - var(--sp, 0) * 1.3)' }}
         >
           <Reveal delay={50} y={20}>
-            <span className="hr-pressed inline-flex items-center gap-2.5 rounded-full px-4 py-2 text-[10px] font-semibold uppercase tracking-[0.3em] text-[color:var(--hr-ink-2)] sm:text-xs">
-              <span
-                className="h-2 w-2 rounded-full bg-teal-600"
-                style={{ animation: 'hr-pulse 1.8s ease-out infinite' }}
-              />
-              Ranchi, India · CS&apos;28 · BIT Mesra
+            <span className="hr-pressed inline-flex items-center gap-2.5 rounded-full px-4 py-2 text-xs font-semibold tracking-wide text-[color:var(--hr-ink-2)] sm:text-[13px]">
+              <span className="hr-pulse h-2 w-2 rounded-full bg-teal-600" />
+              CS &rsquo;28 at BIT Mesra, Ranchi
             </span>
           </Reveal>
 
           <Reveal delay={150} y={40}>
-            <h1 className="hero-heading font-black uppercase leading-[0.9] tracking-tighter text-[color:var(--hr-ink-2)]">
-              <span className="block text-[10vw] sm:text-[6.5vw] md:text-[min(3.4vw,5.5svh)]">
-                Hi, I&apos;m
+            <h1 className="font-extrabold leading-[0.95] tracking-tight text-[color:var(--hr-ink-2)]">
+              <span className="block text-[clamp(1.5rem,6vw,2.25rem)] font-semibold md:text-[min(2.6vw,4.5svh)]">
+                Hi, I&rsquo;m
               </span>
-              <span className="hr-name block pb-[0.06em] text-[16vw] sm:text-[11vw] md:text-[min(6.8vw,12svh)]">
+              <span className="hr-name block pb-[0.08em] text-[clamp(3.5rem,17vw,6rem)] md:text-[min(7.4vw,13svh)]">
                 Saurav
               </span>
             </h1>
           </Reveal>
 
           <Reveal delay={280} y={20}>
-            <p className="text-sm font-bold uppercase tracking-[0.22em] text-[color:var(--hr-ink-3)] sm:text-base">
+            <p className="text-lg font-bold tracking-tight text-[color:var(--hr-ink-3)] sm:text-xl">
               <RotatingRole />
             </p>
           </Reveal>
@@ -271,8 +320,8 @@ const HeroSection = () => {
               className="max-w-[480px] leading-relaxed text-[color:var(--hr-ink-2)]"
               style={{ fontSize: 'clamp(0.95rem, 1.35vw, 1.15rem)' }}
             >
-              I build fast, secure, production-grade web apps end to end, now adding data
-              analysis and machine learning.
+              I build fast, secure, production-grade web apps end to end, and I&rsquo;m now adding
+              data analysis and machine learning.
             </p>
           </Reveal>
 
@@ -280,38 +329,51 @@ const HeroSection = () => {
             <ContactButton />
             <a
               href="#projects"
-              className={`hr-btn-ghost group/btn relative overflow-hidden rounded-full px-7 py-3.5 text-xs font-bold uppercase tracking-[0.2em] text-[color:var(--hr-ink)] sm:text-sm ${focusRing}`}
+              className={`hr-btn-ghost group/btn relative inline-flex items-center gap-2 overflow-hidden rounded-full px-7 py-3.5 text-sm font-bold text-[color:var(--hr-ink)] ${focusRing}`}
             >
-              <span className="relative z-10 flex items-center gap-2">
-                View work
-                <span className="transition-transform duration-500 group-hover/btn:translate-x-1">→</span>
-              </span>
+              View my work
               <span
                 aria-hidden="true"
-                className="pointer-events-none absolute inset-y-0 left-0 w-1/3 bg-gradient-to-r from-transparent via-white/90 to-transparent opacity-0 group-hover/btn:opacity-100"
-                style={{ animation: 'hr-shine 1.1s ease-out' }}
-              />
+                className="transition-transform duration-300 group-hover/btn:translate-y-0.5"
+              >
+                &darr;
+              </span>
             </a>
           </Reveal>
 
-          {/* Ratings: an inset well */}
-          <Reveal delay={580} y={20} className="w-full max-w-[520px]">
-            <div className="hr-pressed grid grid-cols-3 divide-x divide-slate-400/25 overflow-hidden rounded-[26px]">
-              {RATINGS.map((r) => (
-                <div
-                  key={r.label}
-                  className="group/r relative flex flex-col gap-1 px-4 py-3 transition-colors duration-500 hover:bg-white/40 sm:px-6"
-                >
-                  <span className="font-mono text-lg font-semibold tabular-nums text-[color:var(--hr-ink)] sm:text-xl">
-                    {r.value}
-                  </span>
-                  <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[color:var(--hr-ink-3)] sm:text-[11px]">
-                    {r.label}
-                  </span>
-                  <span className="absolute bottom-0 left-4 right-4 h-[2px] origin-left scale-x-[0.2] rounded-full bg-slate-500/70 transition-transform duration-500 group-hover/r:scale-x-100 sm:left-6 sm:right-6" />
-                </div>
+          {/* Coding profiles */}
+          <Reveal delay={580} y={20} className="w-full max-w-[560px]">
+            <p className="mb-3 text-sm font-semibold text-[color:var(--hr-ink-2)]">
+              Find me solving problems on
+            </p>
+            <ul className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+              {PROFILES.map((p) => (
+                <li key={p.name}>
+                  <a
+                    href={p.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    aria-label={`${p.name} profile, ${p.handle} (opens in a new tab)`}
+                    className={`hr-link flex items-center gap-3 rounded-2xl px-3.5 py-3 ${focusRing}`}
+                  >
+                    <span className="hr-pressed flex h-10 w-10 shrink-0 items-center justify-center rounded-xl font-mono text-xs font-bold text-[color:var(--hr-ink)]">
+                      {p.mark}
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-sm font-bold leading-tight text-[color:var(--hr-ink)]">
+                        {p.name}
+                      </span>
+                      <span className="block truncate text-xs text-[color:var(--hr-ink-3)]">
+                        @{p.handle}
+                      </span>
+                    </span>
+                    <span className="hr-link-arrow text-[color:var(--hr-ink-3)]">
+                      <ArrowUpRight />
+                    </span>
+                  </a>
+                </li>
               ))}
-            </div>
+            </ul>
           </Reveal>
         </div>
 
@@ -321,17 +383,17 @@ const HeroSection = () => {
             <Reveal
               delay={350}
               y={30}
-              className="relative w-[240px] sm:w-[300px] md:w-[min(380px,44svh)] lg:w-[min(440px,50svh)]"
+              className="relative w-[230px] sm:w-[300px] md:w-[min(380px,44svh)] lg:w-[min(440px,50svh)]"
             >
               <div
                 ref={stageRef}
-                onMouseMove={onMove}
-                onMouseLeave={onLeave}
+                onPointerMove={onMove}
+                onPointerLeave={onLeave}
                 className="relative aspect-[4/5] w-full"
                 style={{
                   perspective: '1400px',
-                  '--rx': '0',
-                  '--ry': '0',
+                  '--rx': '0deg',
+                  '--ry': '0deg',
                   '--px': '0',
                   '--py': '0',
                   transform: 'scale(calc(1 - var(--sp, 0) * 0.08))',
@@ -340,7 +402,7 @@ const HeroSection = () => {
                 {/* Offset backing plate for depth */}
                 <div
                   aria-hidden="true"
-                  className="hr-pressed absolute inset-0 translate-x-4 translate-y-4 rounded-[36px] sm:translate-x-5 sm:translate-y-5 sm:rounded-[44px]"
+                  className="hr-pressed absolute inset-0 translate-x-3 translate-y-3 rounded-[32px] sm:translate-x-5 sm:translate-y-5 sm:rounded-[44px]"
                 />
 
                 {/* Card with a gentle tilt */}
@@ -351,11 +413,14 @@ const HeroSection = () => {
                     transform: 'rotateX(var(--rx)) rotateY(var(--ry))',
                   }}
                 >
-                  <div className="hr-raised absolute inset-0 rounded-[36px] p-2 sm:rounded-[44px] sm:p-2.5">
-                    <div className="relative h-full w-full overflow-hidden rounded-[28px] sm:rounded-[35px]">
+                  <div className="hr-raised absolute inset-0 rounded-[32px] p-2 sm:rounded-[44px] sm:p-2.5">
+                    <div className="relative h-full w-full overflow-hidden rounded-[24px] sm:rounded-[35px]">
                       <img
                         src={myimage}
                         alt="Kumar Saurav, full-stack developer"
+                        width="440"
+                        height="550"
+                        decoding="async"
                         className="h-full w-full select-none object-cover transition-transform duration-700 ease-out group-hover/card:scale-[1.03]"
                         style={{ objectPosition: '50% 22%' }}
                         draggable={false}
@@ -369,7 +434,7 @@ const HeroSection = () => {
                     className="hr-raised-sm absolute -bottom-4 left-1/2 flex items-center gap-3 whitespace-nowrap rounded-full py-1.5 pl-1.5 pr-4 sm:pr-5"
                     style={{ transform: 'translateX(-50%) translateZ(40px)' }}
                   >
-                    <span className="hr-pressed flex h-8 w-8 items-center justify-center rounded-full text-teal-600 sm:h-9 sm:w-9">
+                    <span className="hr-pressed flex h-8 w-8 items-center justify-center rounded-full text-teal-700 sm:h-9 sm:w-9">
                       <svg
                         viewBox="0 0 24 24"
                         className="h-4 w-4 sm:h-[18px] sm:w-[18px]"
@@ -383,13 +448,13 @@ const HeroSection = () => {
                         <path d="M13 2 4 14h7l-1 8 9-12h-7l1-8z" />
                       </svg>
                     </span>
-                    <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-[color:var(--hr-ink)] sm:text-xs">
+                    <span className="text-[11px] font-bold tracking-wide text-[color:var(--hr-ink)] sm:text-xs">
                       {BADGE_TEXT}
                     </span>
                   </div>
                 </div>
 
-                {/* Icon-only floating badges, with a light pointer shift */}
+                {/* Floating icon badges (tablet and up), with a light pointer shift */}
                 {ICONS.map((ic) => (
                   <div
                     key={ic.label}
@@ -400,7 +465,7 @@ const HeroSection = () => {
                     }}
                   >
                     <div
-                      className="hr-raised-sm flex h-11 w-11 items-center justify-center rounded-full text-[color:var(--hr-ink-2)] transition-colors duration-300 hover:text-teal-600"
+                      className="hr-raised-sm flex h-11 w-11 items-center justify-center rounded-full text-[color:var(--hr-ink-2)] transition-colors duration-300 hover:text-teal-700"
                       title={ic.label}
                       role="img"
                       aria-label={ic.label}
@@ -424,11 +489,11 @@ const HeroSection = () => {
                 {/* Vertical tagline along the right edge */}
                 <div
                   aria-hidden="true"
-                  className="pointer-events-none absolute -right-8 top-1/2 hidden -translate-y-1/2 md:flex md:items-center md:gap-3 lg:-right-10"
+                  className="pointer-events-none absolute -right-8 top-1/2 hidden md:flex md:items-center md:gap-3 lg:-right-10"
                   style={{ writingMode: 'vertical-rl', transform: 'translateY(-50%) rotate(180deg)' }}
                 >
                   <span className="h-10 w-px bg-gradient-to-b from-transparent via-slate-400/60 to-transparent" />
-                  <span className="text-[10px] font-bold uppercase tracking-[0.35em] text-[color:var(--hr-ink-3)]">
+                  <span className="text-xs font-semibold tracking-[0.2em] text-[color:var(--hr-ink-3)]">
                     {TAGLINE}
                   </span>
                 </div>
@@ -438,7 +503,7 @@ const HeroSection = () => {
         </div>
       </div>
 
-      {/* Scroll cue: fades out as you scroll, only when the screen is tall enough */}
+      {/* Scroll cue: fades out as you scroll, only on tall desktop screens */}
       <a
         href="#about"
         aria-label="Scroll to About"
@@ -446,10 +511,7 @@ const HeroSection = () => {
         style={{ opacity: 'calc(1 - var(--sp, 0) * 6)' }}
       >
         <span className="hr-pressed flex h-9 w-6 justify-center rounded-full pt-2">
-          <span
-            className="h-1.5 w-1 rounded-full bg-slate-500"
-            style={{ animation: 'hr-cue 1.8s ease-in-out infinite' }}
-          />
+          <span className="hr-cue h-1.5 w-1 rounded-full bg-slate-500" />
         </span>
       </a>
     </section>

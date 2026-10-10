@@ -2,6 +2,7 @@ import HeroSection from '../components/HeroSection';
 import AboutSection from '../components/AboutSection';
 import ProjectsSection from '../components/ProjectsSection';
 import ServicesSection from '../components/ServicesSection';
+import ContactSection from '../components/Contact';
 
 const Portfolio = () => {
   return (
@@ -11,7 +12,7 @@ const Portfolio = () => {
       <div id="projects"><ProjectsSection /></div>
       <div id="skills"><ServicesSection /></div>
       
-      {/* <div id="contact"><ContactSection /></div> */}
+      <div id="contact"><ContactSection /></div>
     </div>
   );
 };

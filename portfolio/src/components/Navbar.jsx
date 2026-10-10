@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 
-const LINKS = ['About', 'Skills', 'Projects', 'Contact'];
+const LINKS = ['About', 'Projects','Skills' , 'Contact'];
 
 const focusRing =
   'focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-500/60 focus-visible:ring-offset-2 focus-visible:ring-offset-transparent';

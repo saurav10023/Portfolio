@@ -3,90 +3,117 @@ import FadeIn from './FadeIn';
 import { projects } from '../data/projects';
 
 /*
-  Design: each project is ONE complete card that always fits inside the viewport, below the navbar.
-  Cards are `position: sticky`, so the next card slides up over the previous one. Each card sticks a
-  few pixels lower than the one before it, so the stack reads as a deck and every card is shown whole.
-
-  Animation is deliberately calm:
-    - the incoming card does not scale or shift its contents; it simply travels up and lands fully formed
-    - the card underneath only recedes slightly (small scale + light wash), because it is about to be covered
-  A single rAF scroll handler writes one CSS variable per card (--out: 0 -> 1, how far the NEXT card has
-  covered it). No React re-render while scrolling, so nothing can blink or remount.
+  How this works
+  --------------
+  Each project gets a tall "track". Inside it, the card is `position: sticky`, so it stays on screen
+  while you scroll through the track. As you scroll:
+    1. the card lands on its FRONT (gallery + summary)
+    2. it flips to its BACK (full overview, highlights, facts)
+    3. the next card slides up over it while it recedes a little
+  One rAF scroll handler writes two CSS variables per track (--flip 0..1, --out 0..1) and a data-side
+  attribute. Nothing re-renders while scrolling. The buttons just scroll to the matching position, so
+  scroll position is the single source of truth.
 */
 
 const COUNT = projects.length;
-const IMAGES_PER_PROJECT = 3;
-const getImages = (p) => [p.col2Image, p.col1Image1, p.col1Image2];
+const RANGE = 0.9; // flip distance, as a fraction of card height (keep in sync with the CSS)
 const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+/* Smootherstep: zero velocity AND zero acceleration at both ends, so the flip starts and settles gently */
+const smoother = (t) => t * t * t * (t * (t * 6 - 15) + 10);
 const pad = (n) => String(n).padStart(2, '0');
 
-/* Darkens an accent so it stays readable on the light surface */
-const tone = (c) => `color-mix(in srgb, ${c} 62%, #1f2937)`;
+/* Darkens an accent so it stays readable on the light surface (works in every browser) */
+const tone = (hex) => {
+  const n = parseInt(hex.slice(1), 16);
+  const c = [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+  const dark = [31, 41, 55];
+  return `rgb(${c.map((v, i) => Math.round(v * 0.62 + dark[i] * 0.38)).join(',')})`;
+};
+
+const reducedMotion = () =>
+  typeof window !== 'undefined' &&
+  typeof window.matchMedia === 'function' &&
+  window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 const focusRing =
   'focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-500/60 focus-visible:ring-offset-2 focus-visible:ring-offset-[#e9edf3]';
 
-const reducedMotion = () =>
-  typeof window !== 'undefined' &&
-  window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+/* ------------------------------------------------------------------ */
+/* Small pieces                                                        */
+/* ------------------------------------------------------------------ */
 
-/* Cursor-follow highlight */
-const trackPointer = (e) => {
-  const el = e.currentTarget;
-  const r = el.getBoundingClientRect();
-  el.style.setProperty('--mx', `${e.clientX - r.left}px`);
-  el.style.setProperty('--my', `${e.clientY - r.top}px`);
-};
-
-const Specular = () => (
-  <div
-    className="pointer-events-none absolute inset-0 rounded-[inherit] opacity-0 transition-opacity duration-500 group-hover/glass:opacity-100"
-    style={{
-      background:
-        'radial-gradient(420px circle at var(--mx, 50%) var(--my, 50%), rgba(255,255,255,0.65), transparent 60%)',
-    }}
-  />
-);
-
-const Chevron = ({ dir }) => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4" aria-hidden="true">
-    <path d={dir === 'left' ? 'M15 18l-6-6 6-6' : 'M9 18l6-6-6-6'} />
+const Icon = ({ d, className = 'h-4 w-4' }) => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className} aria-hidden="true">
+    <path d={d} />
   </svg>
 );
 
-const IconButton = ({ label, onClick, children }) => (
+const IconButton = ({ label, onClick, d }) => (
   <button
     type="button"
     onClick={onClick}
     aria-label={label}
     className={`pj-raised-sm pj-press grid h-9 w-9 place-items-center rounded-full text-[color:var(--pj-ink-2)] hover:text-[color:var(--pj-ink)] ${focusRing}`}
   >
+    <Icon d={d} />
+  </button>
+);
+
+const StatusPill = ({ status }) => (
+  <span className="pj-pressed inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-semibold text-[color:var(--pj-ink-2)]">
+    <span
+      className={`h-2 w-2 rounded-full ${status.state === 'live' ? 'pj-live bg-teal-600' : 'bg-amber-600'}`}
+    />
+    {status.label}
+  </span>
+);
+
+const DemoButton = ({ project }) =>
+  project.liveUrl ? (
+    <a
+      href={project.liveUrl}
+      target="_blank"
+      rel="noopener noreferrer"
+      aria-label={`Open ${project.name} live demo (opens in a new tab)`}
+      className={`pj-demo group/demo inline-flex items-center gap-2.5 rounded-full px-6 py-3 text-sm font-bold text-white ${focusRing}`}
+    >
+      Live demo
+      <Icon
+        d="M7 17L17 7M9 7h8v8"
+        className="h-4 w-4 transition-transform duration-300 group-hover/demo:-translate-y-0.5 group-hover/demo:translate-x-0.5"
+      />
+    </a>
+  ) : (
+    <span
+      aria-disabled="true"
+      className="pj-pressed inline-flex items-center gap-2 rounded-full px-6 py-3 text-sm font-semibold text-[color:var(--pj-ink-3)]"
+    >
+      Demo coming soon
+    </span>
+  );
+
+const GhostButton = ({ onClick, children, className = '' }) => (
+  <button
+    type="button"
+    onClick={onClick}
+    className={`pj-ghost inline-flex items-center gap-2 rounded-full px-5 py-3 text-sm font-bold text-[color:var(--pj-ink)] ${focusRing} ${className}`}
+  >
     {children}
   </button>
 );
 
 /* ------------------------------------------------------------------ */
-/* Gallery: image well, thumbnails, controls                           */
+/* Gallery                                                             */
 /* ------------------------------------------------------------------ */
 
 const Gallery = ({ project }) => {
+  const images = project.images;
+  const total = images.length;
   const [idx, setIdx] = useState(0);
-  const frameRef = useRef(null);
   const swipe = useRef(null);
-  const images = getImages(project);
 
-  const step = useCallback((d) => setIdx((i) => (i + d + IMAGES_PER_PROJECT) % IMAGES_PER_PROJECT), []);
+  const step = useCallback((d) => setIdx((i) => (i + d + total) % total), [total]);
 
-  const onMove = (e) => {
-    if (e.pointerType === 'touch' || !frameRef.current) return;
-    const r = frameRef.current.getBoundingClientRect();
-    frameRef.current.style.setProperty('--px', ((e.clientX - r.left) / r.width - 0.5) * 2);
-    frameRef.current.style.setProperty('--py', ((e.clientY - r.top) / r.height - 0.5) * 2);
-  };
-  const onLeave = () => {
-    frameRef.current?.style.setProperty('--px', 0);
-    frameRef.current?.style.setProperty('--py', 0);
-  };
   const onUp = (e) => {
     const s = swipe.current;
     swipe.current = null;
@@ -97,191 +124,88 @@ const Gallery = ({ project }) => {
   };
 
   return (
-    <div className="pj-pressed relative flex min-h-[170px] flex-1 flex-col rounded-[24px] p-2.5 sm:rounded-[30px] sm:p-3 lg:min-h-0">
+    <div className="pj-pressed relative flex min-h-[150px] flex-1 flex-col rounded-[24px] p-2 sm:rounded-[30px] sm:p-3 lg:min-h-0">
       <div
-        ref={frameRef}
-        onPointerMove={onMove}
-        onPointerLeave={onLeave}
         onPointerDown={(e) => (swipe.current = { x: e.clientX, y: e.clientY })}
         onPointerUp={onUp}
         onPointerCancel={() => (swipe.current = null)}
-        className="relative min-h-0 flex-1 overflow-hidden rounded-[18px] bg-[#dde2ea] sm:rounded-[22px]"
+        className="relative min-h-0 flex-1 overflow-hidden rounded-[18px] bg-[#dfe4ec] sm:rounded-[22px]"
         style={{ touchAction: 'pan-y' }}
       >
-        {images.map((src, ii) => {
-          const visible = ii === idx;
-          const rel = Math.sign(ii - idx);
-          return (
-            <div
-              key={ii}
-              className="pj-layer absolute inset-0 transform-gpu"
-              aria-hidden={!visible}
-              style={{
-                // The incoming image fades in on top; the outgoing one only drops once covered. No dip.
-                zIndex: visible ? 2 : 1,
-                opacity: visible ? 1 : 0,
-                visibility: visible ? 'visible' : 'hidden',
-                transform: visible ? 'translate3d(0,0,0) scale(1)' : `translate3d(${rel * 4}%,0,0) scale(1.01)`,
-                transition: visible
-                  ? 'opacity 650ms cubic-bezier(0.22,1,0.36,1), transform 850ms cubic-bezier(0.22,1,0.36,1), visibility 0s'
-                  : 'opacity 0s linear 700ms, transform 850ms cubic-bezier(0.22,1,0.36,1), visibility 0s linear 700ms',
-                pointerEvents: 'none',
-              }}
-            >
-              <img
-                src={src}
-                alt=""
-                loading="eager"
-                decoding="async"
-                className="absolute inset-0 h-full w-full object-cover opacity-30 blur-2xl"
-                style={{ transform: 'scale(1.25) translate3d(calc(var(--px,0) * 12px), calc(var(--py,0) * 8px), 0)', transition: 'transform 500ms cubic-bezier(0.22,1,0.36,1)' }}
-              />
-              <img
-                src={src}
-                alt={`${project.name} ${ii === 0 ? 'showcase' : `detail ${ii}`}`}
-                loading="eager"
-                decoding="async"
-                className="relative h-full w-full object-contain"
-                style={{ transform: 'translate3d(calc(var(--px,0) * -6px), calc(var(--py,0) * -4px), 0)', transition: 'transform 500ms cubic-bezier(0.22,1,0.36,1)' }}
-              />
-            </div>
-          );
-        })}
-        {/* Sunken edge so the image reads as set into the well */}
-        <div className="pointer-events-none absolute inset-0 z-[3] rounded-[inherit] shadow-[inset_3px_3px_9px_rgba(100,116,139,0.35),inset_-3px_-3px_8px_rgba(255,255,255,0.7)]" />
+        {images.map((src, i) => (
+          <img
+            key={i}
+            src={src}
+            alt={`${project.name}, screenshot ${i + 1} of ${total}`}
+            aria-hidden={i !== idx}
+            loading={i === 0 ? 'eager' : 'lazy'}
+            decoding="async"
+            draggable={false}
+            className="absolute inset-0 h-full w-full select-none object-contain"
+            style={{
+              opacity: i === idx ? 1 : 0,
+              transform: i === idx ? 'scale(1)' : 'scale(1.035)',
+              transition: 'opacity 600ms cubic-bezier(0.22,1,0.36,1), transform 900ms cubic-bezier(0.22,1,0.36,1)',
+            }}
+          />
+        ))}
+        <div className="pointer-events-none absolute inset-0 rounded-[inherit] shadow-[inset_3px_3px_9px_rgba(100,116,139,0.3),inset_-3px_-3px_8px_rgba(255,255,255,0.65)]" />
       </div>
 
-      <div className="mt-2.5 flex items-center justify-between gap-3 sm:mt-3">
-        <div className="flex gap-2 p-1">
-          {images.map((src, i) => (
-            <button
-              key={i}
-              type="button"
-              onClick={() => setIdx(i)}
-              aria-label={`Show image ${i + 1} of ${IMAGES_PER_PROJECT}`}
-              aria-pressed={idx === i}
-              className={`h-8 w-11 overflow-hidden rounded-[12px] transition-[opacity,box-shadow] duration-300 hover:!opacity-100 sm:h-10 sm:w-14 ${focusRing}`}
-              style={{
-                boxShadow:
-                  idx === i
-                    ? `0 0 0 2px ${tone(project.accent)}, 3px 3px 8px rgba(143,157,180,0.5)`
-                    : '3px 3px 7px rgba(143,157,180,0.45), -3px -3px 7px rgba(255,255,255,0.9)',
-                opacity: idx === i ? 1 : 0.6,
-              }}
-            >
-              <img src={src} alt="" className="h-full w-full object-cover" />
-            </button>
-          ))}
+      {total > 1 && (
+        <div className="mt-2.5 flex items-center justify-between gap-3 sm:mt-3">
+          <div className="flex gap-2 p-1">
+            {images.map((src, i) => (
+              <button
+                key={i}
+                type="button"
+                onClick={() => setIdx(i)}
+                aria-label={`Show screenshot ${i + 1} of ${total}`}
+                aria-pressed={i === idx}
+                className={`h-8 w-11 overflow-hidden rounded-[10px] transition-[opacity,box-shadow] duration-300 sm:h-9 sm:w-14 ${focusRing}`}
+                style={{
+                  boxShadow:
+                    i === idx
+                      ? `0 0 0 2px ${tone(project.accent)}, 3px 3px 8px rgba(143,157,180,0.5)`
+                      : '3px 3px 7px rgba(143,157,180,0.4), -3px -3px 7px rgba(255,255,255,0.9)',
+                  opacity: i === idx ? 1 : 0.6,
+                }}
+              >
+                <img src={src} alt="" loading="lazy" className="h-full w-full object-cover" />
+              </button>
+            ))}
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="mr-1 text-xs font-bold tabular-nums text-[color:var(--pj-ink-3)]" aria-live="polite">
+              {idx + 1} / {total}
+            </span>
+            <IconButton label="Previous screenshot" onClick={() => step(-1)} d="M15 18l-6-6 6-6" />
+            <IconButton label="Next screenshot" onClick={() => step(1)} d="M9 18l6-6-6-6" />
+          </div>
         </div>
-        <div className="flex items-center gap-2">
-          <span className="mr-1 text-xs font-bold tabular-nums tracking-wider text-[color:var(--pj-ink-3)]" aria-live="polite">
-            {pad(idx + 1)} / {pad(IMAGES_PER_PROJECT)}
-          </span>
-          <IconButton label="Previous image" onClick={() => step(-1)}>
-            <Chevron dir="left" />
-          </IconButton>
-          <IconButton label="Next image" onClick={() => step(1)}>
-            <Chevron dir="right" />
-          </IconButton>
-        </div>
-      </div>
+      )}
     </div>
   );
 };
 
 /* ------------------------------------------------------------------ */
-/* Info column                                                         */
+/* Front face                                                          */
 /* ------------------------------------------------------------------ */
 
-const Info = ({ project }) => (
-  <div className="pj-info relative flex shrink-0 flex-col justify-between gap-3 px-1 py-1 sm:px-2 lg:min-h-0 lg:shrink lg:gap-4 lg:py-2">
-    <div className="relative flex items-start justify-between gap-4">
-      <span
-        className="pj-num hidden select-none font-black leading-none tabular-nums lg:block"
-        style={{
-          fontSize: 'clamp(4rem, 7vw, 6.5rem)',
-          color: 'transparent',
-          WebkitTextStroke: `1.5px ${tone(project.accent)}`,
-          opacity: 0.8,
-        }}
-        aria-hidden="true"
-      >
-        {project.number}
-      </span>
-      <span className="pj-pressed inline-flex items-center gap-2 rounded-full px-3.5 py-1.5 text-[10px] font-bold uppercase tracking-[0.22em] text-[color:var(--pj-ink-2)] lg:mt-2">
-        <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: tone(project.accent) }} />
-        {project.category}
-      </span>
-    </div>
-
-    <div className="relative flex flex-col gap-2 sm:gap-3">
-      <h3 className="text-xl font-extrabold uppercase leading-[1.05] tracking-tight text-[color:var(--pj-ink)] sm:text-2xl lg:text-3xl xl:text-4xl">
-        {project.name}
-      </h3>
-      <p className="pj-blurb max-w-[56ch] overflow-hidden text-sm font-medium leading-relaxed text-[color:var(--pj-ink-2)] [-webkit-box-orient:vertical] [-webkit-line-clamp:3] [display:-webkit-box] sm:text-base">
-        {project.blurb}
-      </p>
-    </div>
-
-    <div className="relative flex flex-col gap-4">
-      <div className="flex flex-wrap gap-2">
-        {project.stack.map((tech) => (
-          <span
-            key={tech}
-            className="pj-raised-sm rounded-full px-3 py-1.5 text-[10px] font-bold uppercase tracking-wide text-[color:var(--pj-ink)] sm:text-xs"
-          >
-            <span
-              className="mr-1.5 inline-block h-1.5 w-1.5 rounded-full align-middle"
-              style={{ backgroundColor: tone(project.accent) }}
-            />
-            {tech}
-          </span>
-        ))}
-      </div>
-      <div>
-        <a
-          href={project.liveUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          aria-label={`Open ${project.name} demo`}
-          className={`pj-demo group/demo inline-flex items-center gap-2.5 rounded-full px-7 py-3 text-xs font-bold uppercase tracking-[0.2em] text-white sm:text-sm ${focusRing}`}
-        >
-          Demo
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4 transition-transform duration-300 group-hover/demo:-translate-y-0.5 group-hover/demo:translate-x-0.5" aria-hidden="true">
-            <path d="M7 17L17 7M9 7h8v8" />
-          </svg>
-        </a>
-      </div>
-    </div>
-  </div>
-);
-
-/* ------------------------------------------------------------------ */
-/* Card: one complete sticky project                                   */
-/* ------------------------------------------------------------------ */
-
-const Card = ({ project, index, cardRef, onJump }) => {
-  const next = projects[(index + 1) % COUNT];
+const Front = ({ project, index, onJump, onFlip }) => {
+  const accent = tone(project.accent);
   return (
-    <article
-      ref={cardRef}
-      onMouseMove={trackPointer}
-      aria-label={`Project ${index + 1} of ${COUNT}: ${project.name}`}
-      className="pj-panel pj-raised group/glass sticky overflow-hidden rounded-[32px] sm:rounded-[44px]"
+    <div
+      className="pj-face pj-front pj-raised"
       style={{
-        zIndex: index + 1,
-        top: `calc(var(--pj-top) + ${index * 0.5}rem)`,
-        // Faint accent light inside the card, kept soft so the surface stays calm
-        backgroundImage: `radial-gradient(46% 38% at 8% 90%, ${project.accent}22, transparent 70%), radial-gradient(40% 34% at 96% 6%, ${next.accent}1a, transparent 70%), linear-gradient(145deg, #f3f5f9, #e1e6ee)`,
+        backgroundImage: `radial-gradient(46% 38% at 6% 94%, ${project.accent}26, transparent 70%), linear-gradient(145deg, #f3f5f9, #e1e6ee)`,
       }}
     >
-      <Specular />
-
       <div className="relative mx-auto flex h-full max-w-6xl flex-col gap-3 p-4 sm:gap-4 sm:p-6 lg:p-7">
         {/* Progress rail: segments double as navigation */}
         <div className="flex items-center justify-between gap-4">
-          <span className="text-[11px] font-bold uppercase tabular-nums tracking-[0.3em] text-[color:var(--pj-ink-2)]">
-            {pad(index + 1)} <span className="text-[color:var(--pj-ink-3)]">/ {pad(COUNT)}</span>
+          <span className="text-xs font-bold tabular-nums text-[color:var(--pj-ink-2)]">
+            {pad(index + 1)} <span className="text-[color:var(--pj-ink-3)]">of {pad(COUNT)}</span>
           </span>
           <div className="flex items-center gap-1.5" role="group" aria-label="Jump to project">
             {projects.map((p, i) => (
@@ -291,14 +215,14 @@ const Card = ({ project, index, cardRef, onJump }) => {
                 onClick={() => onJump(i)}
                 aria-label={`Go to ${p.name}`}
                 aria-current={i === index}
-                className={`group/seg flex h-6 items-center rounded-full ${focusRing}`}
+                className={`flex h-6 items-center rounded-full ${focusRing}`}
               >
                 <span
-                  className="block h-[4px] rounded-full transition-all duration-500 group-hover/seg:opacity-100"
+                  className="block h-[4px] rounded-full transition-all duration-500"
                   style={{
                     width: i === index ? 40 : 22,
-                    backgroundColor: i === index ? tone(project.accent) : '#8c96a8',
-                    opacity: i === index ? 1 : i < index ? 0.55 : 0.3,
+                    backgroundColor: i === index ? accent : '#8c96a8',
+                    opacity: i === index ? 1 : 0.35,
                   }}
                 />
               </button>
@@ -306,15 +230,151 @@ const Card = ({ project, index, cardRef, onJump }) => {
           </div>
         </div>
 
-        <div className="flex min-h-0 flex-1 flex-col gap-3 sm:gap-4 lg:grid lg:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)] lg:grid-rows-[minmax(0,1fr)] lg:gap-6">
+        <div className="flex min-h-0 flex-1 flex-col gap-3 sm:gap-4 lg:grid lg:grid-cols-[minmax(0,1.45fr)_minmax(0,1fr)] lg:grid-rows-[minmax(0,1fr)] lg:gap-6">
           <Gallery project={project} />
-          <Info project={project} />
+
+          <div className="flex shrink-0 flex-col justify-between gap-3 px-1 lg:min-h-0 lg:shrink lg:gap-4 lg:py-2">
+            <div className="flex items-start justify-between gap-4">
+              <span
+                className="pj-num hidden select-none font-black leading-none tabular-nums lg:block"
+                style={{
+                  fontSize: 'clamp(4rem, 7vw, 6.5rem)',
+                  color: 'transparent',
+                  WebkitTextStroke: `1.5px ${accent}`,
+                  opacity: 0.8,
+                }}
+                aria-hidden="true"
+              >
+                {project.number}
+              </span>
+              <div className="flex flex-wrap items-center gap-2 lg:mt-2 lg:justify-end">
+                <span className="text-xs font-semibold text-[color:var(--pj-ink-2)]">{project.kind}</span>
+                <StatusPill status={project.status} />
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-2 sm:gap-3">
+              <h3 className="text-2xl font-extrabold leading-[1.05] tracking-tight text-[color:var(--pj-ink)] sm:text-3xl xl:text-4xl">
+                {project.name}
+              </h3>
+              <p className="pj-clamp pj-summary max-w-[52ch] text-sm font-medium leading-relaxed text-[color:var(--pj-ink-2)] sm:text-base">
+                {project.summary}
+              </p>
+            </div>
+
+            <div className="flex flex-col gap-3 sm:gap-4">
+              <ul className="pj-stack-front flex flex-wrap gap-2">
+                {project.stack.map((t) => (
+                  <li key={t} className="pj-raised-sm rounded-full px-3 py-1.5 text-xs font-semibold text-[color:var(--pj-ink)]">
+                    {t}
+                  </li>
+                ))}
+              </ul>
+              <div className="flex flex-wrap items-center gap-3">
+                <DemoButton project={project} />
+                <GhostButton onClick={() => onFlip(index, 'back')}>
+                  How it&rsquo;s built
+                  <Icon d="M9 18l6-6-6-6" />
+                </GhostButton>
+              </div>
+              <p
+                className="pj-hint flex items-center gap-2 text-xs font-medium text-[color:var(--pj-ink-3)]"
+                style={{ opacity: 'calc(1 - var(--flip, 0) * 4)' }}
+              >
+                <Icon d="M12 5v14M6 13l6 6 6-6" className="pj-bob h-3.5 w-3.5" />
+                Keep scrolling and this card flips to show the details
+              </p>
+            </div>
+          </div>
         </div>
       </div>
+    </div>
+  );
+};
 
-      {/* Light wash as the next card covers this one */}
-      <div className="pj-dim pointer-events-none absolute inset-0 z-10 bg-[#e9edf3]" aria-hidden="true" />
-    </article>
+/* ------------------------------------------------------------------ */
+/* Back face                                                           */
+/* ------------------------------------------------------------------ */
+
+const Back = ({ project, index, onFlip }) => {
+  const accent = tone(project.accent);
+  return (
+    <div
+      className="pj-face pj-back pj-raised"
+      style={{
+        backgroundImage: `radial-gradient(46% 38% at 94% 8%, ${project.accent}2a, transparent 70%), linear-gradient(145deg, #f3f5f9, #e1e6ee)`,
+      }}
+    >
+      <div className="relative mx-auto flex h-full max-w-6xl flex-col gap-3 p-4 sm:gap-4 sm:p-6 lg:p-8">
+        <div className="flex items-start justify-between gap-4">
+          <div className="min-w-0">
+            <div className="mb-2 flex flex-wrap items-center gap-2">
+              <span className="text-xs font-semibold text-[color:var(--pj-ink-2)]">{project.kind}</span>
+              <StatusPill status={project.status} />
+            </div>
+            <h3 className="text-2xl font-extrabold leading-[1.05] tracking-tight text-[color:var(--pj-ink)] sm:text-3xl xl:text-4xl">
+              {project.name}
+            </h3>
+          </div>
+          <GhostButton onClick={() => onFlip(index, 'front')} className="shrink-0 !px-4 !py-2.5">
+            <Icon d="M15 18l-6-6 6-6" />
+            <span className="hidden sm:inline">Overview</span>
+            <span className="sm:hidden">Back</span>
+          </GhostButton>
+        </div>
+
+        <div className="flex min-h-0 flex-1 flex-col gap-4 lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)] lg:gap-8">
+          {/* Story, facts, stack */}
+          <div className="flex min-h-0 flex-col gap-3 sm:gap-4">
+            <p style={{ '--i': 0 }} className="pj-reveal pj-clamp pj-overview text-sm font-medium leading-relaxed text-[color:var(--pj-ink-2)] sm:text-base">
+              {project.overview}
+            </p>
+            <dl style={{ '--i': 1 }} className="pj-reveal grid grid-cols-3 gap-2 sm:gap-3">
+              {project.facts.map((f) => (
+                <div key={f.label} className="pj-pressed rounded-2xl px-3 py-2.5">
+                  <dt className="text-[11px] font-semibold text-[color:var(--pj-ink-3)]">{f.label}</dt>
+                  <dd className="mt-0.5 text-xs font-bold leading-snug text-[color:var(--pj-ink)] sm:text-sm">{f.value}</dd>
+                </div>
+              ))}
+            </dl>
+            <ul style={{ '--i': 2 }} className="pj-reveal pj-stack-back flex flex-wrap gap-2">
+              {project.stack.map((t) => (
+                <li key={t} className="pj-raised-sm rounded-full px-3 py-1.5 text-xs font-semibold text-[color:var(--pj-ink)]">
+                  {t}
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          {/* Highlights */}
+          <ul className="grid min-h-0 flex-1 grid-cols-1 content-start gap-2.5 sm:grid-cols-2 sm:gap-3">
+            {project.highlights.map((h, hi) => (
+              <li
+                key={h.title}
+                style={{ '--i': hi + 1 }}
+                className="pj-reveal pj-raised-sm flex gap-3 rounded-2xl p-3 sm:p-4"
+              >
+                <span
+                  className="mt-1.5 h-2 w-2 shrink-0 rounded-full"
+                  style={{ backgroundColor: accent }}
+                  aria-hidden="true"
+                />
+                <div className="min-w-0">
+                  <h4 className="text-sm font-bold text-[color:var(--pj-ink)]">{h.title}</h4>
+                  <p className="pj-clamp pj-hl mt-1 text-xs font-medium leading-relaxed text-[color:var(--pj-ink-2)] sm:text-[13px]">
+                    {h.text}
+                  </p>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-3">
+          <DemoButton project={project} />
+        </div>
+      </div>
+    </div>
   );
 };
 
@@ -323,100 +383,131 @@ const Card = ({ project, index, cardRef, onJump }) => {
 /* ------------------------------------------------------------------ */
 
 const ProjectsSection = () => {
-  const listRef = useRef(null);
-  const cardRefs = useRef([]);
-  const metrics = useRef({ h: 0, gap: 0, sticks: [] });
+  const trackRefs = useRef([]);
+  const metrics = useRef({ h: 0, stick: 0 });
 
-  // Scroll -> CSS variable. No React state, so scrolling never re-renders anything.
   useEffect(() => {
-    const cards = () => cardRefs.current;
+    const tracks = () => trackRefs.current;
+    const state = tracks().map(() => ({ flip: 0, out: 0, tf: 0, to: 0, w: {} }));
 
     const measure = () => {
-      const first = cards()[0];
-      if (!first) return;
-      const cs = getComputedStyle(first);
+      const card = tracks()[0]?.querySelector('.pj-card');
+      if (!card) return;
       metrics.current = {
-        h: first.offsetHeight,
-        gap: parseFloat(cs.marginBottom) || 0,
-        sticks: cards().map((el) => (el ? parseFloat(getComputedStyle(el).top) || 0 : 0)),
+        h: card.offsetHeight,
+        stick: parseFloat(getComputedStyle(card).top) || 0,
       };
     };
 
-    if (reducedMotion()) {
-      measure();
-      window.addEventListener('resize', measure);
-      return () => window.removeEventListener('resize', measure);
-    }
-
-    const last = new Array(COUNT).fill(null);
-    let raf = 0;
-
-    const update = () => {
-      raf = 0;
-      const { h, gap, sticks } = metrics.current;
-      const dist = h + gap || 1;
-      cards().forEach((el, i) => {
-        if (!el) return;
-        let out = 0;
-        const nextEl = cards()[i + 1];
-        if (nextEl) {
-          const nextTop = nextEl.getBoundingClientRect().top;
-          out = clamp(1 - (nextTop - (sticks[i + 1] || 0)) / dist, 0, 1);
-        }
-        const r = Math.round(out * 1000) / 1000;
-        if (last[i] === r) return;
-        last[i] = r;
-        el.style.setProperty('--out', r);
+    /* Where each card SHOULD be for the current scroll position */
+    const readTargets = () => {
+      const { h, stick } = metrics.current;
+      if (!h) return;
+      const range = h * RANGE;
+      tracks().forEach((t, i) => {
+        if (!t) return;
+        const scrolled = stick - t.getBoundingClientRect().top;
+        const p = clamp(scrolled / range, 0, 1);
+        state[i].tf = smoother(clamp((p - 0.08) / 0.6, 0, 1));
+        state[i].to = i < COUNT - 1 ? smoother(clamp((scrolled - range) / h, 0, 1)) : 0;
       });
     };
 
-    const onScroll = () => {
-      if (!raf) raf = requestAnimationFrame(update);
+    /* Write only what changed, so the browser does the minimum work */
+    const write = () => {
+      tracks().forEach((t, i) => {
+        if (!t) return;
+        const s = state[i];
+        const flip = Math.round(s.flip * 10000) / 10000;
+        const out = Math.round(s.out * 10000) / 10000;
+        if (s.w.flip !== flip) {
+          s.w.flip = flip;
+          t.style.setProperty('--flip', flip);
+          t.style.setProperty('--lift', Math.round(Math.sin(Math.PI * flip) * 10000) / 10000);
+          const side = flip > 0.5 ? 'back' : 'front';
+          if (t.dataset.side !== side) t.dataset.side = side;
+        }
+        if (s.w.out !== out) {
+          s.w.out = out;
+          t.style.setProperty('--out', out);
+        }
+      });
+    };
+
+    /*
+      Damping: the displayed value eases toward the target every frame. Mouse-wheel notches and fast
+      flicks become one continuous glide instead of stepping, on every refresh rate.
+    */
+    let raf = 0;
+    let prev = 0;
+    const frame = (now) => {
+      const dt = Math.min(0.05, (now - prev) / 1000 || 0.016);
+      prev = now;
+      readTargets();
+      const a = reducedMotion() ? 1 : 1 - Math.exp(-dt * 9);
+      let moving = false;
+      state.forEach((s) => {
+        s.flip += (s.tf - s.flip) * a;
+        s.out += (s.to - s.out) * a;
+        if (Math.abs(s.tf - s.flip) < 0.0006) s.flip = s.tf;
+        else moving = true;
+        if (Math.abs(s.to - s.out) < 0.0006) s.out = s.to;
+        else moving = true;
+      });
+      write();
+      raf = moving ? requestAnimationFrame(frame) : 0;
+    };
+
+    const kick = () => {
+      if (raf) return;
+      prev = performance.now();
+      raf = requestAnimationFrame(frame);
     };
     const onResize = () => {
       measure();
-      onScroll();
+      kick();
     };
 
     measure();
-    update();
-    window.addEventListener('scroll', onScroll, { passive: true });
+    readTargets();
+    state.forEach((s) => {
+      s.flip = s.tf; // start exactly in place: no animation on load
+      s.out = s.to;
+    });
+    write();
+    window.addEventListener('scroll', kick, { passive: true });
     window.addEventListener('resize', onResize);
     return () => {
-      window.removeEventListener('scroll', onScroll);
+      window.removeEventListener('scroll', kick);
       window.removeEventListener('resize', onResize);
       if (raf) cancelAnimationFrame(raf);
     };
   }, []);
 
-  // Card i lands on its sticky position when the page has scrolled (natural top - stick).
-  const jump = useCallback((i) => {
-    const list = listRef.current;
-    if (!list) return;
-    const { h, gap, sticks } = metrics.current;
-    const listTop = list.getBoundingClientRect().top + window.scrollY;
-    const target = listTop + i * (h + gap) - (sticks[i] || 0);
+  /* Scroll so project i is landed on its front ('front') or fully flipped to its back ('back') */
+  const goTo = useCallback((i, side = 'front') => {
+    const t = trackRefs.current[i];
+    if (!t) return;
+    const { h, stick } = metrics.current;
+    const base = t.getBoundingClientRect().top + window.scrollY - stick;
+    const target = side === 'back' ? base + h * RANGE * 0.72 : base + 1;
     window.scrollTo({ top: target, behavior: reducedMotion() ? 'auto' : 'smooth' });
   }, []);
 
   return (
-    <section
-      id="projects"
-      // overflow-x-clip (not hidden) so position: sticky keeps working inside
-      className="pj-root relative z-10 overflow-x-clip bg-[#e9edf3]"
-      style={{ '--pj-n': COUNT - 1 }}
-    >
+    <section id="projects" className="pj-root relative z-10 bg-[#e9edf3]">
       <style>{`
         @import url("https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap");
 
         .pj-root {
-          --pj-ink: #3b4352;
-          --pj-ink-2: #667085;
-          --pj-ink-3: #98a1b2;
+          --pj-ink: #333b4a;
+          --pj-ink-2: #5d6779;
+          --pj-ink-3: #7a8497;
           --pj-lo: rgba(143,157,180,.5);
           --pj-hi: rgba(255,255,255,.95);
-          /* Distance from the top of the viewport to the first card (clears the floating navbar) */
-          --pj-top: 5rem;
+          --pj-top: 5rem;                       /* clears the floating navbar */
+          --card-h: max(30rem, calc(100vh - var(--pj-top) - 1rem));
+          --card-h: max(30rem, calc(100svh - var(--pj-top) - 1rem));
           font-family: "Plus Jakarta Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
           color: var(--pj-ink);
         }
@@ -441,80 +532,159 @@ const ProjectsSection = () => {
         .pj-press { transition: box-shadow .25s ease, color .25s ease, transform .2s ease; }
         .pj-press:active { transform: scale(.96); box-shadow: inset 3px 3px 6px var(--pj-lo), inset -3px -3px 6px var(--pj-hi); }
 
-        /* Demo button: solid slate pill, clearly the primary action on the card */
+        .pj-ghost {
+          background: linear-gradient(145deg, rgba(244,246,250,.85), rgba(228,232,240,.6));
+          border: 1px solid rgba(255,255,255,.9);
+          box-shadow: 4px 4px 10px rgba(143,157,180,.45), -4px -4px 10px rgba(255,255,255,.95);
+          transition: transform .25s ease, box-shadow .25s ease;
+        }
+        @media (hover: hover) { .pj-ghost:hover { transform: translateY(-2px); } }
+        .pj-ghost:active { transform: scale(.97); box-shadow: inset 3px 3px 7px var(--pj-lo), inset -3px -3px 7px var(--pj-hi); }
+
         .pj-demo {
           background: linear-gradient(145deg, #7b8496, #4f586a);
           border: 1px solid rgba(255,255,255,.45);
           box-shadow: 6px 7px 16px -4px rgba(71,82,102,.6), -4px -4px 10px rgba(255,255,255,.9), inset 0 1px 0 rgba(255,255,255,.3);
-          transition: transform .3s var(--pj-ease, ease), box-shadow .3s ease, filter .3s ease;
+          transition: transform .3s ease, box-shadow .3s ease, filter .3s ease;
         }
         @media (hover: hover) { .pj-demo:hover { transform: translateY(-2px); filter: brightness(1.06); } }
         .pj-demo:active { transform: scale(.97); box-shadow: inset 3px 3px 7px rgba(30,38,54,.5), inset -2px -2px 5px rgba(255,255,255,.2); }
 
         .pj-title {
-          background: linear-gradient(100deg, #2f3745 10%, #566176 55%, #8a94a8 100%);
+          background: linear-gradient(100deg, #2b3340 10%, #4f5a70 55%, #7c869b 100%);
           -webkit-background-clip: text; background-clip: text;
           -webkit-text-fill-color: transparent; color: transparent;
         }
 
-        /*
-          Every card is sized to fit the viewport below the navbar, so the WHOLE card is visible while it is
-          on screen. Each later card sticks 0.5rem lower, so the bottoms never run off the screen.
-        */
-        .pj-panel {
-          --out: 0;
-          margin-bottom: 1.5rem;
-          min-height: 26rem;
-          height: calc(100vh - var(--pj-top) - 1rem - var(--pj-n) * 0.5rem);
-          height: calc(100svh - var(--pj-top) - 1rem - var(--pj-n) * 0.5rem);
-          transform-origin: 50% 0%;
-          /* Only the card underneath recedes, and only slightly */
-          transform: scale(calc(1 - var(--out) * 0.035));
+        /* ---------- Scroll track, sticky card, flip ---------- */
+        .pj-track { position: relative; height: calc(var(--card-h) * 2.9); }
+        .pj-track + .pj-track { margin-top: calc(var(--card-h) * -1); }
+        .pj-track:last-child { height: calc(var(--card-h) * 2.2); }
+
+        .pj-card {
+          position: sticky;
+          top: var(--pj-top);
+          height: var(--card-h);
+          transform-origin: 50% 0;
+          transform: translate3d(0, 0, 0) scale(calc(1 - var(--out, 0) * 0.04));
           will-change: transform;
         }
-        .pj-dim { opacity: calc(var(--out) * 0.35); }
-
-        @media (prefers-reduced-motion: reduce) {
-          .pj-panel { transform: none; }
-          .pj-layer, .pj-layer img { transition-duration: 1ms !important; transition-delay: 0s !important; }
+        .pj-stage { position: absolute; inset: 0; perspective: 2200px; }
+        .pj-inner {
+          position: absolute; inset: 0;
+          transform-style: preserve-3d;
+          /* lifts away from the screen mid-flip (--lift peaks at 1 halfway) so it reads as a real card */
+          transform: translateZ(calc(var(--lift, 0) * -110px)) rotateY(calc(var(--flip, 0) * 180deg));
+          will-change: transform;
         }
-        /* Taller screens get a longer description; shorter ones tighten so nothing is ever cut off */
-        @media (min-width: 1024px) { .pj-blurb { -webkit-line-clamp: 5; } }
-        @media (min-width: 1024px) and (max-height: 900px) { .pj-blurb { -webkit-line-clamp: 3; } .pj-num { font-size: 4rem !important; } }
-        @media (min-width: 1024px) and (max-height: 780px) { .pj-num { display: none !important; } .pj-blurb { -webkit-line-clamp: 2; } }
-        @media (max-width: 1023px) and (max-height: 760px) { .pj-blurb { -webkit-line-clamp: 2; } }
+        .pj-face {
+          position: absolute; inset: 0; overflow: hidden;
+          border-radius: 32px;
+          -webkit-backface-visibility: hidden; backface-visibility: hidden;
+        }
+        @media (min-width: 640px) { .pj-face { border-radius: 44px; } }
+        .pj-back { transform: rotateY(180deg); }
+        /* Only the visible side is interactive and readable by assistive tech */
+        .pj-track[data-side="front"] .pj-back,
+        .pj-track[data-side="back"] .pj-front { visibility: hidden; }
+
+        .pj-dim {
+          position: absolute; inset: 0; z-index: 5; pointer-events: none;
+          border-radius: 32px; background: #e9edf3;
+          opacity: calc(var(--out, 0) * 0.4 + var(--lift, 0) * 0.12);
+        }
+        @media (min-width: 640px) { .pj-dim { border-radius: 44px; } }
+
+        /* Back-of-card content settles in one item at a time as the flip completes */
+        .pj-reveal {
+          --k: clamp(0, calc((var(--flip, 0) - 0.5) * 6 - var(--i, 0) * 0.55), 1);
+          opacity: var(--k);
+          transform: translate3d(0, calc((1 - var(--k)) * 14px), 0);
+        }
+
+        /* ---------- Text clamps so nothing is ever cut mid-card ---------- */
+        .pj-clamp { display: -webkit-box; -webkit-box-orient: vertical; overflow: hidden; }
+        .pj-summary { -webkit-line-clamp: 3; }
+        .pj-overview { -webkit-line-clamp: 6; }
+        .pj-hl { -webkit-line-clamp: 2; }
+        @media (min-width: 1024px) {
+          .pj-summary { -webkit-line-clamp: 4; }
+          .pj-overview { -webkit-line-clamp: 9; }
+          .pj-hl { -webkit-line-clamp: 3; }
+        }
+        @media (min-width: 1024px) and (max-height: 860px) {
+          .pj-summary { -webkit-line-clamp: 3; }
+          .pj-overview { -webkit-line-clamp: 6; }
+          .pj-hl { -webkit-line-clamp: 2; }
+          .pj-num { font-size: 3.5rem !important; }
+        }
+        @media (min-width: 1024px) and (max-height: 720px) { .pj-num { display: none !important; } }
+        @media (max-width: 1023px) and (max-height: 780px) {
+          .pj-summary { -webkit-line-clamp: 2; }
+          .pj-overview { -webkit-line-clamp: 4; }
+          .pj-hl { -webkit-line-clamp: 1; }
+          .pj-stack-back, .pj-hint { display: none; }
+        }
+        @media (max-width: 1023px) and (max-height: 700px) { .pj-stack-front { display: none; } }
+
+        /* ---------- Small motion ---------- */
+        .pj-live { animation: pj-pulse 1.8s ease-out infinite; }
+        .pj-bob { animation: pj-bob 1.8s ease-in-out infinite; }
+        @keyframes pj-pulse { 0% { box-shadow: 0 0 0 0 rgba(13,148,136,.45); } 100% { box-shadow: 0 0 0 8px rgba(13,148,136,0); } }
+        @keyframes pj-bob { 0%,100% { transform: translateY(0); } 50% { transform: translateY(3px); } }
+
+        /* Reduced motion: no 3D, no scaling. The sides swap instantly instead of flipping. */
+        @media (prefers-reduced-motion: reduce) {
+          .pj-inner { transform: none !important; }
+          .pj-back { transform: none; }
+          .pj-card { transform: none !important; }
+          .pj-dim { display: none; }
+          .pj-live, .pj-bob { animation: none; }
+          .pj-reveal { opacity: 1; transform: none; }
+        }
       `}</style>
 
-      {/* Soft light behind the heading */}
-      <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 top-0 h-[480px] overflow-hidden">
-        <div className="absolute left-1/2 top-0 h-[360px] w-[620px] -translate-x-1/2 rounded-full bg-white opacity-90 blur-[110px]" />
-      </div>
-
-      {/* Heading scrolls away normally */}
-      <div className="relative px-5 pb-10 pt-20 text-center sm:px-8 sm:pb-12 sm:pt-24 md:px-10 md:pt-28">
+      {/* Heading (scrolls away normally) */}
+      <div className="relative overflow-hidden px-5 pb-10 pt-20 text-center sm:px-8 sm:pb-12 sm:pt-24 md:px-10 md:pt-28">
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute left-1/2 top-0 h-[420px] w-[720px] max-w-none -translate-x-1/2"
+          style={{ background: 'radial-gradient(closest-side, rgba(255,255,255,.95), rgba(255,255,255,0))' }}
+        />
         <FadeIn delay={0}>
-          <span className="pj-pressed inline-block rounded-full px-4 py-1.5 text-[10px] font-semibold uppercase tracking-[0.4em] text-[color:var(--pj-ink-2)] sm:text-xs">
-            Selected Work
-          </span>
           <h2
-            className="pj-title mt-6 font-black uppercase"
-            style={{ fontSize: 'clamp(3rem, 12vw, 160px)', lineHeight: 1, paddingBottom: '0.06em' }}
+            className="pj-title relative font-black tracking-tight"
+            style={{ fontSize: 'clamp(3rem, 12vw, 150px)', lineHeight: 1, paddingBottom: '0.08em' }}
           >
             Projects
           </h2>
+          <p className="relative mx-auto mt-4 max-w-[46ch] text-sm font-medium leading-relaxed text-[color:var(--pj-ink-2)] sm:text-base">
+            Three products I&rsquo;ve built and shipped. Scroll slowly: each card flips over to show how it
+            was made.
+          </p>
         </FadeIn>
       </div>
 
-      {/* The stack: scroll normally and each card slides over the last */}
-      <div ref={listRef} className="relative px-3 pb-24 sm:px-6 md:px-8">
+      {/* The stack */}
+      <div className="relative px-3 pb-24 sm:px-6 md:px-8">
         {projects.map((p, i) => (
-          <Card
+          <div
             key={p.number}
-            project={p}
-            index={i}
-            cardRef={(el) => (cardRefs.current[i] = el)}
-            onJump={jump}
-          />
+            ref={(el) => (trackRefs.current[i] = el)}
+            className="pj-track"
+            data-side="front"
+            style={{ zIndex: i + 1 }}
+          >
+            <article className="pj-card" aria-label={`Project ${i + 1} of ${COUNT}: ${p.name}`}>
+              <div className="pj-stage">
+                <div className="pj-inner">
+                  <Front project={p} index={i} onJump={goTo} onFlip={goTo} />
+                  <Back project={p} index={i} onFlip={goTo} />
+                </div>
+              </div>
+              <div className="pj-dim" aria-hidden="true" />
+            </article>
+          </div>
         ))}
       </div>
     </section>
